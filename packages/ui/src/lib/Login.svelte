@@ -40,8 +40,9 @@
 
     <form onsubmit={handleSubmit} class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
         <input
+          id="username"
           type="text"
           bind:value={username}
           placeholder="admin"
@@ -50,8 +51,9 @@
         />
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
         <input
+          id="password"
           type="password"
           bind:value={password}
           required
