@@ -1,0 +1,11 @@
+{
+  "name": "easy-openclaw-auth",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:api": "bun run --cwd packages/api dev",
+    "dev:ui": "bun run --cwd packages/ui dev",
+    "build:ui": "bun run --cwd packages/ui build",
+    "start": "bun run --cwd packages/api start"
+  }
+}
