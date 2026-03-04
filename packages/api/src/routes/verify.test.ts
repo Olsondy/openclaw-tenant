@@ -75,4 +75,16 @@ describe("POST /verify", () => {
     const body = await res.json() as { error: string };
     expect(body.error).toBe("LICENSE_REVOKED");
   });
+
+  test("rejects expired license", async () => {
+    const db = getDb();
+    db.run(
+      `INSERT INTO licenses (license_key, gateway_token, gateway_url, status, expiry_date)
+       VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', 'active', '2020-01-01')`
+    );
+    const res = await post({ hwid: "hw1", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "PC" });
+    expect(res.status).toBe(403);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("LICENSE_EXPIRED");
+  });
 });

@@ -12,7 +12,13 @@ licenses.get("/", (c) => {
 });
 
 licenses.post("/", async (c) => {
-  const config = await readOpenclawConfig();
+  let config;
+  try {
+    config = await readOpenclawConfig();
+  } catch (err) {
+    console.error("Failed to read openclaw config:", err);
+    return c.json({ success: false, error: "CONFIG_UNAVAILABLE" }, 500);
+  }
   const licenseKey = generateLicenseKey();
   const db = getDb();
 

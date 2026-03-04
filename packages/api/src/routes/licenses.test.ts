@@ -48,6 +48,11 @@ describe("GET /licenses", () => {
 });
 
 describe("POST /licenses", () => {
+  test("returns 401 without token", async () => {
+    const res = await app.request("/licenses", { method: "POST" });
+    expect(res.status).toBe(401);
+  });
+
   test("generates a license and returns it", async () => {
     const res = await app.request("/licenses", {
       method: "POST",
