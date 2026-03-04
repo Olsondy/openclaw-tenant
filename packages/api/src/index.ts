@@ -6,8 +6,10 @@ import licensesRoutes from "./routes/licenses";
 import verifyRoutes from "./routes/verify";
 import { jwtMiddleware } from "./middleware/jwt";
 import { getDb } from "./db/client";
+import { resumePendingProvisioning } from "./services/provisioning/licenseProvisioningService";
 
 getDb(); // Initialize DB and run migrations on startup
+resumePendingProvisioning(); // Resume any interrupted provisioning jobs
 
 const app = new Hono();
 
