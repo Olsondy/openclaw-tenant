@@ -1,4 +1,9 @@
 node_modules/
 *.db
 .env
+.env.local
+.env.*.local
 packages/ui/dist/
+.DS_Store
+Thumbs.db
+*.log
