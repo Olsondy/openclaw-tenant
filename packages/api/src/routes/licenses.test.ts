@@ -92,3 +92,74 @@ describe("PATCH /licenses/:id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /licenses – provision fields", () => {
+  beforeEach(() => {
+    process.env.OPENCLAW_HOST_IP = "10.0.0.1";
+    process.env.OPENCLAW_GATEWAY_PORT_START = "18789";
+    process.env.OPENCLAW_GATEWAY_PORT_END = "18999";
+    process.env.OPENCLAW_BRIDGE_PORT_START = "28789";
+    process.env.OPENCLAW_BRIDGE_PORT_END = "28999";
+    delete process.env.OPENCLAW_BASE_DOMAIN;
+  });
+
+  test("returns provision_status=pending on creation", async () => {
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: await authHeader(),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json() as any;
+    expect(body.data.provision_status).toBe("pending");
+  });
+
+  test("assigns gateway_port and compose_project", async () => {
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: await authHeader(),
+    });
+    const body = await res.json() as any;
+    expect(body.data.gateway_port).toBe(18789);
+    expect(body.data.compose_project).toMatch(/^openclaw-/);
+  });
+
+  test("gateway_url uses OPENCLAW_HOST_IP in no-domain mode", async () => {
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: await authHeader(),
+    });
+    const body = await res.json() as any;
+    expect(body.data.gateway_url).toContain("ws://10.0.0.1:");
+  });
+
+  test("returns 400 INVALID_OWNER_TAG for invalid ownerTag", async () => {
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: { ...(await authHeader()), "Content-Type": "application/json" },
+      body: JSON.stringify({ ownerTag: "---" }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json() as any;
+    expect(body.error).toBe("INVALID_OWNER_TAG");
+  });
+
+  test("returns 503 NO_AVAILABLE_PORT when pool exhausted", async () => {
+    process.env.OPENCLAW_GATEWAY_PORT_START = "18789";
+    process.env.OPENCLAW_GATEWAY_PORT_END = "18789";
+    process.env.OPENCLAW_BRIDGE_PORT_START = "28789";
+    process.env.OPENCLAW_BRIDGE_PORT_END = "28789";
+
+    await app.request("/licenses", {
+      method: "POST",
+      headers: await authHeader(),
+    });
+
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: await authHeader(),
+    });
+    expect(res.status).toBe(503);
+    const body = await res.json() as any;
+    expect(body.error).toBe("NO_AVAILABLE_PORT");
+  });
+});
