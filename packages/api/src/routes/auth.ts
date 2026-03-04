@@ -6,7 +6,12 @@ import { getDb } from "../db/client";
 const auth = new Hono();
 
 auth.post("/login", async (c) => {
-  const body = await c.req.json<{ username?: string; password?: string }>();
+  let body: { username?: string; password?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ success: false, error: "INVALID_JSON" }, 400);
+  }
   const { username, password } = body;
 
   if (!username || !password) {
@@ -24,7 +29,10 @@ auth.post("/login", async (c) => {
     return c.json({ success: false, error: "INVALID_CREDENTIALS" }, 401);
   }
 
-  const secret = process.env.JWT_SECRET ?? "dev-secret";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return c.json({ success: false, error: "SERVER_MISCONFIGURATION" }, 500);
+  }
   const token = await sign(
     { sub: String(user.id), username, exp: Math.floor(Date.now() / 1000) + 86400 },
     secret
