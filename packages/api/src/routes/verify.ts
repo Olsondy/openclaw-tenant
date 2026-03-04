@@ -17,6 +17,8 @@ interface LicenseRow {
   gateway_url: string;
   status: string;
   expiry_date: string | null;
+  provision_status: string | null;
+  container_name: string | null;
 }
 
 const verify = new Hono();
@@ -40,8 +42,22 @@ verify.post("/", async (c) => {
     .get(licenseKey);
 
   if (!license) return c.json({ success: false, error: "INVALID_LICENSE" }, 403);
-  if (license.status === "revoked") return c.json({ success: false, error: "LICENSE_REVOKED" }, 403);
-  if (isExpired(license.expiry_date)) return c.json({ success: false, error: "LICENSE_EXPIRED" }, 403);
+
+  // Provisioning gate
+  const ps = license.provision_status;
+  if (ps === "pending" || ps === "running") {
+    return c.json({ success: false, error: "PROVISIONING_PENDING" }, 409);
+  }
+  if (ps === "failed") {
+    return c.json({ success: false, error: "PROVISIONING_FAILED" }, 409);
+  }
+
+  if (license.status === "revoked") {
+    return c.json({ success: false, error: "LICENSE_REVOKED" }, 403);
+  }
+  if (isExpired(license.expiry_date)) {
+    return c.json({ success: false, error: "LICENSE_EXPIRED" }, 403);
+  }
 
   let agentId: string;
 
@@ -49,16 +65,18 @@ verify.post("/", async (c) => {
     agentId = generateAgentId(hwid);
     db.run(
       `UPDATE licenses
-       SET hwid = ?, device_name = ?, agent_id = ?, status = 'active', bound_at = datetime('now')
-       WHERE license_key = ?`,
+       SET hwid=?, device_name=?, agent_id=?, status='active', bound_at=datetime('now')
+       WHERE license_key=?`,
       [hwid, deviceName, agentId, licenseKey]
     );
   } else {
-    if (license.hwid !== hwid) return c.json({ success: false, error: "HWID_MISMATCH" }, 403);
+    if (license.hwid !== hwid) {
+      return c.json({ success: false, error: "HWID_MISMATCH" }, 403);
+    }
     agentId = license.agent_id!;
   }
 
-  spawnDockerApprove(hwid, licenseKey);
+  spawnDockerApprove(hwid, licenseKey, license.container_name ?? undefined);
 
   return c.json({
     success: true,

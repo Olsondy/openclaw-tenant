@@ -88,3 +88,80 @@ describe("POST /verify", () => {
     expect(body.error).toBe("LICENSE_EXPIRED");
   });
 });
+
+function seedLicenseWithProvision(
+  provisionStatus: string | null,
+  status = "unbound",
+  hwid: string | null = null
+) {
+  const db = getDb();
+  db.run(
+    `INSERT INTO licenses
+       (license_key, gateway_token, gateway_url, status, hwid, provision_status)
+     VALUES ('PROV-AAAAA-BBBBB-CCCCC', 'tok', 'ws://gw:18789', ?, ?, ?)`,
+    [status, hwid, provisionStatus]
+  );
+}
+
+describe("POST /verify – provisioning gate", () => {
+  test("returns 409 PROVISIONING_PENDING when status is pending", async () => {
+    seedLicenseWithProvision("pending");
+    const res = await post({
+      hwid: "hw1",
+      licenseKey: "PROV-AAAAA-BBBBB-CCCCC",
+      deviceName: "PC",
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("PROVISIONING_PENDING");
+  });
+
+  test("returns 409 PROVISIONING_PENDING when status is running", async () => {
+    seedLicenseWithProvision("running");
+    const res = await post({
+      hwid: "hw1",
+      licenseKey: "PROV-AAAAA-BBBBB-CCCCC",
+      deviceName: "PC",
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("PROVISIONING_PENDING");
+  });
+
+  test("returns 409 PROVISIONING_FAILED when status is failed", async () => {
+    seedLicenseWithProvision("failed");
+    const res = await post({
+      hwid: "hw1",
+      licenseKey: "PROV-AAAAA-BBBBB-CCCCC",
+      deviceName: "PC",
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("PROVISIONING_FAILED");
+  });
+
+  test("allows verify when provision_status is ready", async () => {
+    seedLicenseWithProvision("ready", "unbound");
+    const res = await post({
+      hwid: "hw-new",
+      licenseKey: "PROV-AAAAA-BBBBB-CCCCC",
+      deviceName: "PC",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test("allows verify when provision_status is null (legacy license)", async () => {
+    const db = getDb();
+    db.run(
+      `INSERT INTO licenses
+         (license_key, gateway_token, gateway_url, status, provision_status)
+       VALUES ('NULL-STATUS-LICENSE', 'tok', 'ws://gw:18789', 'unbound', NULL)`
+    );
+    const res = await post({
+      hwid: "hw-legacy",
+      licenseKey: "NULL-STATUS-LICENSE",
+      deviceName: "PC",
+    });
+    expect(res.status).toBe(200);
+  });
+});
