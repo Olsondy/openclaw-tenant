@@ -8,7 +8,10 @@ export const jwtMiddleware = createMiddleware(async (c, next) => {
   }
 
   const token = authHeader.slice(7);
-  const secret = process.env.JWT_SECRET ?? "dev-secret";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return c.json({ success: false, error: "SERVER_MISCONFIGURATION" }, 500);
+  }
 
   try {
     const payload = await verify(token, secret, "HS256");
