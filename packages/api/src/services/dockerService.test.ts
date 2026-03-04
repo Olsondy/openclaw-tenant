@@ -1,7 +1,11 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, afterEach } from "bun:test";
 import { buildDockerArgs } from "./dockerService";
 
 describe("buildDockerArgs", () => {
+  afterEach(() => {
+    delete process.env.DOCKER_APPROVE_CMD;
+  });
+
   test("returns null when DOCKER_APPROVE_CMD not set", () => {
     delete process.env.DOCKER_APPROVE_CMD;
     expect(buildDockerArgs()).toBeNull();
