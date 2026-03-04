@@ -17,6 +17,7 @@ export function getDb(): Database {
 
 /** Only used in tests to reset singleton */
 export function resetDb(): void {
+  _db?.close();
   _db = null;
 }
 
