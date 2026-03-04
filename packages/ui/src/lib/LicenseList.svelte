@@ -7,6 +7,7 @@
   let loading = $state(true);
   let generating = $state(false);
   let error = $state("");
+  let ownerTag = $state("");
 
   const STATUS = {
     unbound: { label: "未绑定", cls: "bg-gray-100 text-gray-600" },
@@ -28,8 +29,9 @@
   async function generate() {
     generating = true;
     try {
-      const res = await api.generateLicense();
+      const res = await api.generateLicense(ownerTag || undefined);
       licenses = [res.data, ...licenses];
+      ownerTag = "";
     } catch (e) {
       error = e instanceof Error ? e.message : "生成失败";
     } finally {
@@ -87,18 +89,27 @@
       <!-- Card header -->
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 class="text-sm font-medium text-gray-900">License 管理</h2>
-        <button
-          onclick={generate}
-          disabled={generating}
-          class="bg-[#1a73e8] hover:bg-[#1557b0] disabled:bg-blue-300 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
-        >
-          {#if generating}
-            <span class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-          {:else}
-            <span class="text-base leading-none">+</span>
-          {/if}
-          生成 License
-        </button>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            bind:value={ownerTag}
+            placeholder="Owner tag (可选)"
+            class="rounded-lg border-gray-300 focus:border-[#1a73e8] focus:ring-[#1a73e8] text-sm px-3 py-2 w-48"
+          />
+          <button
+            onclick={generate}
+            disabled={generating}
+            class="bg-[#1a73e8] hover:bg-[#1557b0] disabled:bg-blue-300 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2"
+          >
+            {#if generating}
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+              </svg>
+            {/if}
+            生成 License
+          </button>
+        </div>
       </div>
 
       <!-- Table -->
@@ -113,11 +124,16 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-100">
-                {#each ["License Key", "状态", "设备名", "HWID", "到期日", "创建时间", "操作"] as col}
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">
-                    {col}
-                  </th>
-                {/each}
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">License Key</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">状态</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">设备名</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">HWID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">到期日</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">创建时间</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provision</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Container</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -138,6 +154,27 @@
                   <td class="px-6 py-4 text-gray-600">{license.expiry_date ?? "永久"}</td>
                   <td class="px-6 py-4 text-gray-400 text-xs whitespace-nowrap">
                     {license.created_at.slice(0, 10)}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    {#if license.provision_status === 'ready'}
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ready</span>
+                    {:else if license.provision_status === 'running'}
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">Running</span>
+                    {:else if license.provision_status === 'failed'}
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" title={license.provision_error ?? ''}>Failed</span>
+                    {:else}
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Pending</span>
+                    {/if}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {license.container_name ?? '-'}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {#if license.gateway_url}
+                      <a href={license.gateway_url} target="_blank" class="text-[#1a73e8] hover:underline text-xs">{license.gateway_url}</a>
+                    {:else}
+                      -
+                    {/if}
                   </td>
                   <td class="px-6 py-4">
                     {#if license.status !== "revoked"}

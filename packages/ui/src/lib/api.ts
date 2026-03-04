@@ -40,6 +40,20 @@ export interface License {
   expiry_date: string | null;
   created_at: string;
   bound_at: string | null;
+  // Provision fields
+  owner_tag: string | null;
+  compose_project: string | null;
+  container_id: string | null;
+  container_name: string | null;
+  gateway_port: number | null;
+  bridge_port: number | null;
+  gateway_url: string;
+  webui_url: string | null;
+  provision_status: "pending" | "running" | "ready" | "failed" | null;
+  provision_error: string | null;
+  provision_started_at: string | null;
+  provision_completed_at: string | null;
+  nginx_host: string | null;
 }
 
 export const api = {
@@ -52,8 +66,11 @@ export const api = {
   getLicenses: () =>
     request<{ success: boolean; data: License[] }>("/licenses"),
 
-  generateLicense: () =>
-    request<{ success: boolean; data: License }>("/licenses", { method: "POST" }),
+  generateLicense: (ownerTag?: string) =>
+    request<{ success: boolean; data: License }>("/licenses", {
+      method: "POST",
+      body: JSON.stringify(ownerTag ? { ownerTag } : {}),
+    }),
 
   revokeLicense: (id: number) =>
     request<{ success: boolean; data: License }>(`/licenses/${id}`, {
