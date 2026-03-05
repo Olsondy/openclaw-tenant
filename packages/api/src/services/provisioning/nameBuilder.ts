@@ -23,10 +23,6 @@ export function buildWorkspaceDir(dataDir: string, composeProject: string): stri
   return `${dataDir}/${composeProject}/workspace`;
 }
 
-export function buildNginxHost(
-  ownerTag: string,
-  licenseId: number,
-  baseDomain: string
-): string {
+export function buildNginxHost(ownerTag: string, licenseId: number, baseDomain: string): string {
   return `${ownerTag}-${licenseId}.${baseDomain}`;
 }

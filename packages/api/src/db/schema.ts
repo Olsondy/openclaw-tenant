@@ -23,7 +23,10 @@ export const SCHEMA_SQL = `
     provision_error      TEXT,
     provision_started_at TEXT,
     provision_completed_at TEXT,
-    nginx_host           TEXT
+    nginx_host           TEXT,
+    auth_token           TEXT,
+    token_expires_at     TEXT,
+    token_ttl_days       INTEGER DEFAULT 30
   );
 
   CREATE TABLE IF NOT EXISTS admin_users (

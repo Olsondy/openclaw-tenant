@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { buildDockerArgs } from "./dockerService";
 
 describe("buildDockerArgs", () => {
@@ -20,19 +20,14 @@ describe("buildDockerArgs", () => {
 
 describe("buildDockerArgs with {{container}}", () => {
   test("replaces {{container}} placeholder with container name", () => {
-    process.env.DOCKER_APPROVE_CMD =
-      "docker exec {{container}} curl http://localhost/approve";
+    process.env.DOCKER_APPROVE_CMD = "docker exec {{container}} curl http://localhost/approve";
     const args = buildDockerArgs("my-container");
-    expect(args).toEqual([
-      "docker", "exec", "my-container", "curl", "http://localhost/approve",
-    ]);
+    expect(args).toEqual(["docker", "exec", "my-container", "curl", "http://localhost/approve"]);
   });
 
   test("leaves cmd unchanged when no containerName provided", () => {
     process.env.DOCKER_APPROVE_CMD = "docker exec openclaw curl http://x/approve";
     const args = buildDockerArgs();
-    expect(args).toEqual([
-      "docker", "exec", "openclaw", "curl", "http://x/approve",
-    ]);
+    expect(args).toEqual(["docker", "exec", "openclaw", "curl", "http://x/approve"]);
   });
 });

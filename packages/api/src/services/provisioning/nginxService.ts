@@ -23,7 +23,7 @@ export async function writeNginxConfig(
   composeProject: string,
   host: string,
   gatewayPort: number,
-  reloadCmd: string
+  reloadCmd: string,
 ): Promise<void> {
   await mkdir(siteDir, { recursive: true });
   const configPath = join(siteDir, `${composeProject}.conf`);

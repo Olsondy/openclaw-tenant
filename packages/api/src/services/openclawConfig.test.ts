@@ -1,13 +1,15 @@
-import { describe, test, expect, afterEach } from "bun:test";
-import { readOpenclawConfig } from "./openclawConfig";
-import { join } from "path";
+import { afterEach, describe, expect, test } from "bun:test";
+import { unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { writeFileSync, unlinkSync } from "fs";
+import { join } from "path";
+import { readOpenclawConfig } from "./openclawConfig";
 
 const tmpFile = join(tmpdir(), "test-openclaw.json");
 
 afterEach(() => {
-  try { unlinkSync(tmpFile); } catch {}
+  try {
+    unlinkSync(tmpFile);
+  } catch {}
   delete process.env.OPENCLAW_CONFIG_PATH;
 });
 

@@ -39,6 +39,9 @@ function ensureLicenseColumns(db: Database): void {
     ["provision_started_at", "TEXT"],
     ["provision_completed_at", "TEXT"],
     ["nginx_host", "TEXT"],
+    ["auth_token", "TEXT"],
+    ["token_expires_at", "TEXT"],
+    ["token_ttl_days", "INTEGER DEFAULT 30"],
   ];
 
   for (const [colName, colDef] of newColumns) {
@@ -53,14 +56,9 @@ function ensureLicenseColumns(db: Database): void {
 function seedAdmin(db: Database): void {
   const username = process.env.ADMIN_USER ?? "admin";
   const password = process.env.ADMIN_PASS ?? "admin123";
-  const existing = db
-    .query("SELECT id FROM admin_users WHERE username = ?")
-    .get(username);
+  const existing = db.query("SELECT id FROM admin_users WHERE username = ?").get(username);
   if (!existing) {
     const hash = bcrypt.hashSync(password, 10);
-    db.run("INSERT INTO admin_users (username, password_hash) VALUES (?, ?)", [
-      username,
-      hash,
-    ]);
+    db.run("INSERT INTO admin_users (username, password_hash) VALUES (?, ?)", [username, hash]);
   }
 }

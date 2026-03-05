@@ -1,5 +1,5 @@
-import { describe, test, expect } from "bun:test";
-import { generateLicenseKey, generateAgentId, isExpired } from "./licenseService";
+import { describe, expect, test } from "bun:test";
+import { generateAgentId, generateLicenseKey, isExpired } from "./licenseService";
 
 describe("generateLicenseKey", () => {
   test("matches XXXXX-XXXXX-XXXXX-XXXXX format", () => {

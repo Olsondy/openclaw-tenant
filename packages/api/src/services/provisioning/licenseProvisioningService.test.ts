@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { resetDb, getDb } from "../../db/client";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { getDb, resetDb } from "../../db/client";
 import { enqueueLicenseProvisioning } from "./licenseProvisioningService";
 
 const originalSpawn = Bun.spawn;
@@ -14,11 +14,11 @@ function seedLicense(db: ReturnType<typeof getDb>) {
        (license_key, gateway_token, gateway_url, status, owner_tag,
         compose_project, gateway_port, bridge_port, provision_status)
      VALUES ('PROV-KEY-001', 'tok123', 'ws://127.0.0.1:18789', 'unbound',
-             'test', 'openclaw-test-1', 18789, 28789, 'pending')`
+             'test', 'openclaw-test-1', 18789, 28789, 'pending')`,
   );
-  return db.query<{ id: number }, string>(
-    "SELECT id FROM licenses WHERE license_key = ?"
-  ).get("PROV-KEY-001")!;
+  return db
+    .query<{ id: number }, string>("SELECT id FROM licenses WHERE license_key = ?")
+    .get("PROV-KEY-001")!;
 }
 
 beforeEach(() => {
@@ -54,7 +54,7 @@ describe("enqueueLicenseProvisioning", () => {
 
     const row = db
       .query<{ provision_status: string; container_name: string }, number>(
-        "SELECT provision_status, container_name FROM licenses WHERE id=?"
+        "SELECT provision_status, container_name FROM licenses WHERE id=?",
       )
       .get(id);
     expect(row?.provision_status).toBe("ready");
@@ -76,7 +76,7 @@ describe("enqueueLicenseProvisioning", () => {
 
     const row = db
       .query<{ provision_status: string; provision_error: string }, number>(
-        "SELECT provision_status, provision_error FROM licenses WHERE id=?"
+        "SELECT provision_status, provision_error FROM licenses WHERE id=?",
       )
       .get(id);
     expect(row?.provision_status).toBe("failed");

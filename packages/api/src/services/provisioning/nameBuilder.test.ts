@@ -1,10 +1,10 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
-  sanitizeOwnerTag,
   buildComposeProject,
   buildConfigDir,
-  buildWorkspaceDir,
   buildNginxHost,
+  buildWorkspaceDir,
+  sanitizeOwnerTag,
 } from "./nameBuilder";
 
 describe("sanitizeOwnerTag", () => {
@@ -38,10 +38,10 @@ describe("buildComposeProject", () => {
 describe("buildConfigDir / buildWorkspaceDir", () => {
   test("builds correct host paths", () => {
     expect(buildConfigDir("/data/openclaw", "openclaw-alice-1")).toBe(
-      "/data/openclaw/openclaw-alice-1/.openclaw"
+      "/data/openclaw/openclaw-alice-1/.openclaw",
     );
     expect(buildWorkspaceDir("/data/openclaw", "openclaw-alice-1")).toBe(
-      "/data/openclaw/openclaw-alice-1/workspace"
+      "/data/openclaw/openclaw-alice-1/workspace",
     );
   });
 });

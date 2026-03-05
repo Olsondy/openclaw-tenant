@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
+import { cors } from "hono/cors";
+import { getDb } from "./db/client";
+import { jwtMiddleware } from "./middleware/jwt";
 import authRoutes from "./routes/auth";
 import licensesRoutes from "./routes/licenses";
 import verifyRoutes from "./routes/verify";
-import { jwtMiddleware } from "./middleware/jwt";
-import { getDb } from "./db/client";
 import { resumePendingProvisioning } from "./services/provisioning/licenseProvisioningService";
 
 getDb(); // Initialize DB and run migrations on startup

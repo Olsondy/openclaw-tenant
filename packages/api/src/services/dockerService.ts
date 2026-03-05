@@ -1,17 +1,11 @@
 export function buildDockerArgs(containerName?: string): string[] | null {
   const cmd = process.env.DOCKER_APPROVE_CMD;
   if (!cmd) return null;
-  const resolved = containerName
-    ? cmd.replace(/\{\{container\}\}/g, containerName)
-    : cmd;
+  const resolved = containerName ? cmd.replace(/\{\{container\}\}/g, containerName) : cmd;
   return resolved.trim().split(/\s+/);
 }
 
-export function spawnDockerApprove(
-  hwid: string,
-  licenseKey: string,
-  containerName?: string
-): void {
+export function spawnDockerApprove(hwid: string, licenseKey: string, containerName?: string): void {
   const args = buildDockerArgs(containerName);
   if (!args) return;
 

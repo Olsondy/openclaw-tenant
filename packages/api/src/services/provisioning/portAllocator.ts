@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 export interface PortPair {
   gatewayPort: number;
@@ -10,34 +10,40 @@ export function allocatePortPair(
   gatewayStart: number,
   gatewayEnd: number,
   bridgeStart: number,
-  bridgeEnd: number
+  bridgeEnd: number,
 ): PortPair {
   const usedGateway = new Set(
     db
       .query<{ gateway_port: number }, []>(
-        "SELECT gateway_port FROM licenses WHERE gateway_port IS NOT NULL"
+        "SELECT gateway_port FROM licenses WHERE gateway_port IS NOT NULL",
       )
       .all()
-      .map((r) => r.gateway_port)
+      .map((r) => r.gateway_port),
   );
 
   const usedBridge = new Set(
     db
       .query<{ bridge_port: number }, []>(
-        "SELECT bridge_port FROM licenses WHERE bridge_port IS NOT NULL"
+        "SELECT bridge_port FROM licenses WHERE bridge_port IS NOT NULL",
       )
       .all()
-      .map((r) => r.bridge_port)
+      .map((r) => r.bridge_port),
   );
 
   let gatewayPort: number | null = null;
   for (let p = gatewayStart; p <= gatewayEnd; p++) {
-    if (!usedGateway.has(p)) { gatewayPort = p; break; }
+    if (!usedGateway.has(p)) {
+      gatewayPort = p;
+      break;
+    }
   }
 
   let bridgePort: number | null = null;
   for (let p = bridgeStart; p <= bridgeEnd; p++) {
-    if (!usedBridge.has(p)) { bridgePort = p; break; }
+    if (!usedBridge.has(p)) {
+      bridgePort = p;
+      break;
+    }
   }
 
   if (gatewayPort === null || bridgePort === null) {

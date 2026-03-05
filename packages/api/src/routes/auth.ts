@@ -1,6 +1,6 @@
+import bcrypt from "bcryptjs";
 import { Hono } from "hono";
 import { sign } from "hono/jwt";
-import bcrypt from "bcryptjs";
 import { getDb } from "../db/client";
 
 const auth = new Hono();
@@ -21,7 +21,7 @@ auth.post("/login", async (c) => {
   const db = getDb();
   const user = db
     .query<{ id: number; password_hash: string }, string>(
-      "SELECT id, password_hash FROM admin_users WHERE username = ?"
+      "SELECT id, password_hash FROM admin_users WHERE username = ?",
     )
     .get(username);
 
@@ -35,7 +35,7 @@ auth.post("/login", async (c) => {
   }
   const token = await sign(
     { sub: String(user.id), username, exp: Math.floor(Date.now() / 1000) + 86400 },
-    secret
+    secret,
   );
 
   return c.json({ success: true, data: { token } });

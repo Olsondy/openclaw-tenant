@@ -1,13 +1,21 @@
 <script lang="ts">
-  import { isLoggedIn } from "./lib/api";
-  import Login from "./lib/Login.svelte";
-  import LicenseList from "./lib/LicenseList.svelte";
+import { isLoggedIn } from "./lib/api";
+import LicenseList from "./lib/LicenseList.svelte";
+import Login from "./lib/Login.svelte";
 
-  let loggedIn = $state(isLoggedIn());
+let loggedIn = $state(isLoggedIn());
 </script>
 
 {#if loggedIn}
-  <LicenseList onLogout={() => (loggedIn = false)} />
+  <LicenseList
+    onLogout={() => {
+      loggedIn = false
+    }}
+  />
 {:else}
-  <Login onLogin={() => (loggedIn = true)} />
+  <Login
+    onLogin={() => {
+      loggedIn = true
+    }}
+  />
 {/if}

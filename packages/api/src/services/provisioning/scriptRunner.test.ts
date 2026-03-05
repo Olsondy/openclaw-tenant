@@ -1,5 +1,5 @@
-import { describe, test, expect, afterEach } from "bun:test";
-import { runProvisionScript, getContainerId, getContainerName } from "./scriptRunner";
+import { afterEach, describe, expect, test } from "bun:test";
+import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
 
 const originalSpawn = Bun.spawn;
 
@@ -13,7 +13,7 @@ function makeSpawnStub(exitCode: number, stdout = "", stderr = "") {
       exited: Promise.resolve(exitCode),
       stdout: new Response(stdout),
       stderr: new Response(stderr),
-    } as any);
+    }) as any;
 }
 
 describe("runProvisionScript", () => {
@@ -29,7 +29,7 @@ describe("runProvisionScript", () => {
         bridgePort: 28789,
         gatewayToken: "tok",
         provisionScript: "/tmp/setup.sh",
-      })
+      }),
     ).resolves.toBeUndefined();
   });
 
@@ -45,7 +45,7 @@ describe("runProvisionScript", () => {
         bridgePort: 28789,
         gatewayToken: "tok",
         provisionScript: "/tmp/setup.sh",
-      })
+      }),
     ).rejects.toThrow("Provision script exited 1");
   });
 });
@@ -58,9 +58,7 @@ describe("getContainerId", () => {
 
   test("throws when container not found", async () => {
     (Bun as any).spawn = makeSpawnStub(0, "");
-    await expect(getContainerId("openclaw-test-1")).rejects.toThrow(
-      "Container not found"
-    );
+    await expect(getContainerId("openclaw-test-1")).rejects.toThrow("Container not found");
   });
 });
 

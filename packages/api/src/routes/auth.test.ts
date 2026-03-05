@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { resetDb } from "../db/client";
 import authRoutes from "./auth";
@@ -40,7 +40,7 @@ describe("POST /auth/login", () => {
       body: JSON.stringify({ username: "admin", password: "secret123" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { success: boolean; data: { token: string } };
+    const body = (await res.json()) as { success: boolean; data: { token: string } };
     expect(body.success).toBe(true);
     expect(typeof body.data.token).toBe("string");
   });

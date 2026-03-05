@@ -1,12 +1,12 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { writeFileSync } from "fs";
 import { Hono } from "hono";
 import { sign } from "hono/jwt";
+import { tmpdir } from "os";
+import { join } from "path";
 import { resetDb } from "../db/client";
 import { jwtMiddleware } from "../middleware/jwt";
 import licensesRoutes from "./licenses";
-import { join } from "path";
-import { tmpdir } from "os";
-import { writeFileSync } from "fs";
 
 const tmpConfig = join(tmpdir(), "test-openclaw-lic.json");
 writeFileSync(tmpConfig, JSON.stringify({ token: "tok123", gatewayUrl: "ws://test:18789" }));
@@ -19,7 +19,7 @@ async function authHeader() {
   const token = await sign(
     { sub: "1", exp: Math.floor(Date.now() / 1000) + 3600 },
     "test-secret",
-    "HS256"
+    "HS256",
   );
   return { Authorization: `Bearer ${token}` };
 }
@@ -41,7 +41,7 @@ describe("GET /licenses", () => {
 
   test("returns empty array initially", async () => {
     const res = await app.request("/licenses", { headers: await authHeader() });
-    const body = await res.json() as { data: unknown[] };
+    const body = (await res.json()) as { data: unknown[] };
     expect(res.status).toBe(200);
     expect(body.data).toEqual([]);
   });
@@ -59,7 +59,7 @@ describe("POST /licenses", () => {
       headers: await authHeader(),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as { data: { license_key: string; status: string } };
+    const body = (await res.json()) as { data: { license_key: string; status: string } };
     expect(body.data.license_key).toMatch(/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/);
     expect(body.data.status).toBe("unbound");
   });
@@ -71,7 +71,7 @@ describe("PATCH /licenses/:id", () => {
       method: "POST",
       headers: await authHeader(),
     });
-    const { data: license } = await genRes.json() as { data: { id: number } };
+    const { data: license } = (await genRes.json()) as { data: { id: number } };
 
     const res = await app.request(`/licenses/${license.id}`, {
       method: "PATCH",
@@ -79,7 +79,7 @@ describe("PATCH /licenses/:id", () => {
       body: JSON.stringify({ status: "revoked" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: { status: string } };
+    const body = (await res.json()) as { data: { status: string } };
     expect(body.data.status).toBe("revoked");
   });
 
@@ -109,7 +109,7 @@ describe("POST /licenses – provision fields", () => {
       headers: await authHeader(),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.data.provision_status).toBe("pending");
   });
 
@@ -118,7 +118,7 @@ describe("POST /licenses – provision fields", () => {
       method: "POST",
       headers: await authHeader(),
     });
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.data.gateway_port).toBe(18789);
     expect(body.data.compose_project).toMatch(/^openclaw-/);
   });
@@ -128,7 +128,7 @@ describe("POST /licenses – provision fields", () => {
       method: "POST",
       headers: await authHeader(),
     });
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.data.gateway_url).toContain("ws://10.0.0.1:");
   });
 
@@ -139,7 +139,7 @@ describe("POST /licenses – provision fields", () => {
       body: JSON.stringify({ ownerTag: "---" }),
     });
     expect(res.status).toBe(400);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("INVALID_OWNER_TAG");
   });
 
@@ -159,7 +159,7 @@ describe("POST /licenses – provision fields", () => {
       headers: await authHeader(),
     });
     expect(res.status).toBe(503);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("NO_AVAILABLE_PORT");
   });
 });

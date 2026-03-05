@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { resetDb, getDb } from "../db/client";
+import { getDb, resetDb } from "../db/client";
 import verifyRoutes from "./verify";
 
 const app = new Hono();
@@ -19,7 +19,7 @@ function seedLicense(status = "unbound", hwid: string | null = null) {
   db.run(
     `INSERT INTO licenses (license_key, gateway_token, gateway_url, status, hwid, agent_id)
      VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', ?, ?, ?)`,
-    [status, hwid, hwid ? "abcdef1234567890" : null]
+    [status, hwid, hwid ? "abcdef1234567890" : null],
   );
 }
 
@@ -38,17 +38,28 @@ describe("POST /verify", () => {
   });
 
   test("returns 403 for unknown licenseKey", async () => {
-    const res = await post({ hwid: "hw1", licenseKey: "XXXXX-XXXXX-XXXXX-XXXXX", deviceName: "PC" });
+    const res = await post({
+      hwid: "hw1",
+      licenseKey: "XXXXX-XXXXX-XXXXX-XXXXX",
+      deviceName: "PC",
+    });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("INVALID_LICENSE");
   });
 
   test("binds unbound license on first verify", async () => {
     seedLicense("unbound");
-    const res = await post({ hwid: "my-hwid-001", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "MyPC" });
+    const res = await post({
+      hwid: "my-hwid-001",
+      licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD",
+      deviceName: "MyPC",
+    });
     expect(res.status).toBe(200);
-    const body = await res.json() as { success: boolean; data: { nodeConfig: { gatewayToken: string; agentId: string } } };
+    const body = (await res.json()) as {
+      success: boolean;
+      data: { nodeConfig: { gatewayToken: string; agentId: string } };
+    };
     expect(body.success).toBe(true);
     expect(body.data.nodeConfig.gatewayToken).toBe("tok");
     expect(body.data.nodeConfig.agentId).toMatch(/^[0-9a-f]{16}$/);
@@ -56,23 +67,35 @@ describe("POST /verify", () => {
 
   test("allows same HWID on subsequent verify", async () => {
     seedLicense("active", "my-hwid-001");
-    const res = await post({ hwid: "my-hwid-001", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "MyPC" });
+    const res = await post({
+      hwid: "my-hwid-001",
+      licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD",
+      deviceName: "MyPC",
+    });
     expect(res.status).toBe(200);
   });
 
   test("rejects different HWID on active license", async () => {
     seedLicense("active", "original-hwid");
-    const res = await post({ hwid: "other-hwid", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "PC" });
+    const res = await post({
+      hwid: "other-hwid",
+      licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD",
+      deviceName: "PC",
+    });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("HWID_MISMATCH");
   });
 
   test("rejects revoked license", async () => {
     seedLicense("revoked", "some-hwid");
-    const res = await post({ hwid: "some-hwid", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "PC" });
+    const res = await post({
+      hwid: "some-hwid",
+      licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD",
+      deviceName: "PC",
+    });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("LICENSE_REVOKED");
   });
 
@@ -80,11 +103,15 @@ describe("POST /verify", () => {
     const db = getDb();
     db.run(
       `INSERT INTO licenses (license_key, gateway_token, gateway_url, status, expiry_date)
-       VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', 'active', '2020-01-01')`
+       VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', 'active', '2020-01-01')`,
     );
-    const res = await post({ hwid: "hw1", licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD", deviceName: "PC" });
+    const res = await post({
+      hwid: "hw1",
+      licenseKey: "AAAAA-BBBBB-CCCCC-DDDDD",
+      deviceName: "PC",
+    });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("LICENSE_EXPIRED");
   });
 });
@@ -92,14 +119,14 @@ describe("POST /verify", () => {
 function seedLicenseWithProvision(
   provisionStatus: string | null,
   status = "unbound",
-  hwid: string | null = null
+  hwid: string | null = null,
 ) {
   const db = getDb();
   db.run(
     `INSERT INTO licenses
        (license_key, gateway_token, gateway_url, status, hwid, provision_status)
      VALUES ('PROV-AAAAA-BBBBB-CCCCC', 'tok', 'ws://gw:18789', ?, ?, ?)`,
-    [status, hwid, provisionStatus]
+    [status, hwid, provisionStatus],
   );
 }
 
@@ -112,7 +139,7 @@ describe("POST /verify – provisioning gate", () => {
       deviceName: "PC",
     });
     expect(res.status).toBe(409);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("PROVISIONING_PENDING");
   });
 
@@ -124,7 +151,7 @@ describe("POST /verify – provisioning gate", () => {
       deviceName: "PC",
     });
     expect(res.status).toBe(409);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("PROVISIONING_PENDING");
   });
 
@@ -136,7 +163,7 @@ describe("POST /verify – provisioning gate", () => {
       deviceName: "PC",
     });
     expect(res.status).toBe(409);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe("PROVISIONING_FAILED");
   });
 
@@ -155,7 +182,7 @@ describe("POST /verify – provisioning gate", () => {
     db.run(
       `INSERT INTO licenses
          (license_key, gateway_token, gateway_url, status, provision_status)
-       VALUES ('NULL-STATUS-LICENSE', 'tok', 'ws://gw:18789', 'unbound', NULL)`
+       VALUES ('NULL-STATUS-LICENSE', 'tok', 'ws://gw:18789', 'unbound', NULL)`,
     );
     const res = await post({
       hwid: "hw-legacy",

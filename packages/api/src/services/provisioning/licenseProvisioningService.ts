@@ -1,9 +1,9 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { getDb } from "../../db/client";
-import { buildConfigDir, buildWorkspaceDir, buildNginxHost } from "./nameBuilder";
-import { runProvisionScript, getContainerId, getContainerName } from "./scriptRunner";
+import { buildConfigDir, buildNginxHost, buildWorkspaceDir } from "./nameBuilder";
 import { writeNginxConfig } from "./nginxService";
+import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
 
 const activeJobs = new Map<number, Promise<void>>();
 
@@ -19,7 +19,7 @@ export function resumePendingProvisioning(): void {
   const db = getDb();
   const stale = db
     .query<{ id: number }, []>(
-      "SELECT id FROM licenses WHERE provision_status IN ('pending', 'running')"
+      "SELECT id FROM licenses WHERE provision_status IN ('pending', 'running')",
     )
     .all();
   if (stale.length > 0) {
@@ -32,21 +32,24 @@ async function runProvisioning(licenseId: number): Promise<void> {
   const db = getDb();
   db.run(
     "UPDATE licenses SET provision_status='running', provision_started_at=datetime('now') WHERE id=?",
-    [licenseId]
+    [licenseId],
   );
 
   try {
     const license = db
-      .query<{
-        compose_project: string;
-        gateway_port: number;
-        bridge_port: number;
-        gateway_token: string;
-        owner_tag: string;
-        gateway_url: string;
-        webui_url: string | null;
-      }, number>(
-        "SELECT compose_project, gateway_port, bridge_port, gateway_token, owner_tag, gateway_url, webui_url FROM licenses WHERE id=?"
+      .query<
+        {
+          compose_project: string;
+          gateway_port: number;
+          bridge_port: number;
+          gateway_token: string;
+          owner_tag: string;
+          gateway_url: string;
+          webui_url: string | null;
+        },
+        number
+      >(
+        "SELECT compose_project, gateway_port, bridge_port, gateway_token, owner_tag, gateway_url, webui_url FROM licenses WHERE id=?",
       )
       .get(licenseId);
 
@@ -97,7 +100,13 @@ async function runProvisioning(licenseId: number): Promise<void> {
       nginxHost = buildNginxHost(license.owner_tag, licenseId, baseDomain);
       const siteDir = process.env.NGINX_SITE_DIR ?? "/etc/nginx/conf.d/openclaw";
       const reloadCmd = process.env.NGINX_RELOAD_CMD ?? "nginx -s reload";
-      await writeNginxConfig(siteDir, license.compose_project, nginxHost, license.gateway_port, reloadCmd);
+      await writeNginxConfig(
+        siteDir,
+        license.compose_project,
+        nginxHost,
+        license.gateway_port,
+        reloadCmd,
+      );
       gatewayUrl = `wss://${nginxHost}`;
       webuiUrl = `https://${nginxHost}`;
     }
@@ -114,17 +123,17 @@ async function runProvisioning(licenseId: number): Promise<void> {
          webui_url=?,
          nginx_host=?
        WHERE id=?`,
-      [containerId, containerName, finalToken, gatewayUrl, webuiUrl, nginxHost, licenseId]
+      [containerId, containerName, finalToken, gatewayUrl, webuiUrl, nginxHost, licenseId],
     );
 
     console.log(
-      `[provision] license=${licenseId} ready container=${containerName} url=${gatewayUrl}`
+      `[provision] license=${licenseId} ready container=${containerName} url=${gatewayUrl}`,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     db.run(
       "UPDATE licenses SET provision_status='failed', provision_error=?, provision_completed_at=datetime('now') WHERE id=?",
-      [msg.slice(0, 1000), licenseId]
+      [msg.slice(0, 1000), licenseId],
     );
     throw err;
   }

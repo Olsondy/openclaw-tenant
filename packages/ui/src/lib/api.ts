@@ -22,7 +22,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   const data = (await res.json()) as { error?: string } & T;
@@ -54,6 +54,10 @@ export interface License {
   provision_started_at: string | null;
   provision_completed_at: string | null;
   nginx_host: string | null;
+  // Token cache fields
+  auth_token: string | null;
+  token_expires_at: string | null;
+  token_ttl_days: number | null;
 }
 
 export const api = {
@@ -63,13 +67,18 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
-  getLicenses: () =>
-    request<{ success: boolean; data: License[] }>("/licenses"),
+  getLicenses: () => request<{ success: boolean; data: License[] }>("/licenses"),
 
-  generateLicense: (ownerTag?: string) =>
+  generateLicense: (opts: {
+    ownerTag?: string;
+    expiryDate?: string;
+    tokenTtlDays?: number;
+    hostIp?: string;
+    baseDomain?: string;
+  }) =>
     request<{ success: boolean; data: License }>("/licenses", {
       method: "POST",
-      body: JSON.stringify(ownerTag ? { ownerTag } : {}),
+      body: JSON.stringify(opts),
     }),
 
   revokeLicense: (id: number) =>

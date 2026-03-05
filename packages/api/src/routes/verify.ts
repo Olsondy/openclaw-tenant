@@ -1,7 +1,7 @@
+import { randomBytes } from "crypto";
 import { Hono } from "hono";
 import { getDb } from "../db/client";
 import { generateAgentId, isExpired } from "../services/licenseService";
-import { spawnDockerApprove } from "../services/dockerService";
 
 interface VerifyBody {
   hwid: string;
@@ -19,9 +19,39 @@ interface LicenseRow {
   expiry_date: string | null;
   provision_status: string | null;
   container_name: string | null;
+  auth_token: string | null;
+  token_expires_at: string | null;
+  token_ttl_days: number | null;
 }
 
 const verify = new Hono();
+
+/**
+ * 将新的 auth token 同步写入对应实例的 openclaw.json。
+ * 路径：{OPENCLAW_DATA_DIR}/{licenseId}/openclaw.json
+ * 若文件不存在（实例尚未完成 provision），则静默跳过。
+ */
+async function syncTokenToConfig(licenseId: number, token: string): Promise<void> {
+  const dataDir = process.env.OPENCLAW_DATA_DIR;
+  if (!dataDir) return;
+
+  const configPath = `${dataDir}/${licenseId}/openclaw.json`;
+  const file = Bun.file(configPath);
+  const exists = await file.exists();
+  if (!exists) return;
+
+  const data = await file.json();
+
+  // 确保嵌套路径存在
+  if (!data.gateway) data.gateway = {};
+  if (!data.gateway.auth) data.gateway.auth = {};
+  if (!data.gateway.remote) data.gateway.remote = {};
+
+  data.gateway.auth.token = token;
+  data.gateway.remote.token = token;
+
+  await Bun.write(configPath, JSON.stringify(data, null, 2));
+}
 
 verify.post("/", async (c) => {
   let body: Partial<VerifyBody>;
@@ -59,6 +89,7 @@ verify.post("/", async (c) => {
     return c.json({ success: false, error: "LICENSE_EXPIRED" }, 403);
   }
 
+  // HWID 绑定逻辑
   let agentId: string;
 
   if (license.status === "unbound") {
@@ -67,7 +98,7 @@ verify.post("/", async (c) => {
       `UPDATE licenses
        SET hwid=?, device_name=?, agent_id=?, status='active', bound_at=datetime('now')
        WHERE license_key=?`,
-      [hwid, deviceName, agentId, licenseKey]
+      [hwid, deviceName, agentId, licenseKey],
     );
   } else {
     if (license.hwid !== hwid) {
@@ -76,7 +107,33 @@ verify.post("/", async (c) => {
     agentId = license.agent_id!;
   }
 
-  spawnDockerApprove(hwid, licenseKey, license.container_name ?? undefined);
+  // ─── Token 缓存逻辑 ───────────────────────────────────────────────
+  const now = new Date();
+  let authToken: string;
+
+  const tokenStillValid =
+    license.auth_token && license.token_expires_at && new Date(license.token_expires_at) > now;
+
+  if (tokenStillValid) {
+    // 未过期：直接复用，同步写入 json（确保实例 config 始终最新）
+    authToken = license.auth_token!;
+    await syncTokenToConfig(license.id, authToken);
+  } else {
+    // 已过期或首次：生成新 token
+    authToken = randomBytes(32).toString("hex");
+    const ttlDays = license.token_ttl_days ?? 30;
+    const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+
+    // 先写文件，再更新 DB（写文件失败不影响 DB 记录）
+    await syncTokenToConfig(license.id, authToken);
+
+    db.run("UPDATE licenses SET auth_token=?, token_expires_at=? WHERE id=?", [
+      authToken,
+      expiresAt,
+      license.id,
+    ]);
+  }
+  // ─────────────────────────────────────────────────────────────────
 
   return c.json({
     success: true,
@@ -86,6 +143,7 @@ verify.post("/", async (c) => {
         gatewayToken: license.gateway_token,
         agentId,
         deviceName,
+        authToken,
       },
       userProfile: {
         licenseStatus: "Valid",

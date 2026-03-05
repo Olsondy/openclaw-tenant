@@ -1,14 +1,14 @@
-import { Hono } from "hono";
 import { randomBytes } from "crypto";
+import { Hono } from "hono";
 import { getDb } from "../db/client";
 import { generateLicenseKey } from "../services/licenseService";
-import { allocatePortPair } from "../services/provisioning/portAllocator";
+import { enqueueLicenseProvisioning } from "../services/provisioning/licenseProvisioningService";
 import {
-  sanitizeOwnerTag,
   buildComposeProject,
   buildNginxHost,
+  sanitizeOwnerTag,
 } from "../services/provisioning/nameBuilder";
-import { enqueueLicenseProvisioning } from "../services/provisioning/licenseProvisioningService";
+import { allocatePortPair } from "../services/provisioning/portAllocator";
 
 const licenses = new Hono();
 
@@ -19,12 +19,26 @@ licenses.get("/", (c) => {
 });
 
 licenses.post("/", async (c) => {
-  // Parse optional ownerTag from body; fall back to JWT username
+  // Parse optional fields from body
   const jwtPayload = c.get("jwtPayload") as { sub?: string; username?: string } | undefined;
   let rawOwnerTag = jwtPayload?.username ?? "user";
+  let expiryDate: string | null = null;
+  let tokenTtlDays = 30;
+  let hostIp = process.env.OPENCLAW_HOST_IP ?? "127.0.0.1";
+  let baseDomain = process.env.OPENCLAW_BASE_DOMAIN;
   try {
-    const body = await c.req.json<{ ownerTag?: string }>();
+    const body = await c.req.json<{
+      ownerTag?: string;
+      expiryDate?: string;
+      tokenTtlDays?: number;
+      hostIp?: string;
+      baseDomain?: string;
+    }>();
     if (body.ownerTag) rawOwnerTag = body.ownerTag;
+    if (body.expiryDate) expiryDate = body.expiryDate;
+    if (body.tokenTtlDays && body.tokenTtlDays > 0) tokenTtlDays = body.tokenTtlDays;
+    if (body.hostIp) hostIp = body.hostIp;
+    if (body.baseDomain) baseDomain = body.baseDomain;
   } catch {
     // body is optional
   }
@@ -46,7 +60,7 @@ licenses.post("/", async (c) => {
       Number(process.env.OPENCLAW_GATEWAY_PORT_START ?? 18789),
       Number(process.env.OPENCLAW_GATEWAY_PORT_END ?? 18999),
       Number(process.env.OPENCLAW_BRIDGE_PORT_START ?? 28789),
-      Number(process.env.OPENCLAW_BRIDGE_PORT_END ?? 28999)
+      Number(process.env.OPENCLAW_BRIDGE_PORT_END ?? 28999),
     );
   } catch {
     return c.json({ success: false, error: "NO_AVAILABLE_PORT" }, 503);
@@ -54,17 +68,17 @@ licenses.post("/", async (c) => {
 
   const licenseKey = generateLicenseKey();
   const gatewayToken = randomBytes(32).toString("hex");
-  const hostIp = process.env.OPENCLAW_HOST_IP ?? "127.0.0.1";
-  const baseDomain = process.env.OPENCLAW_BASE_DOMAIN;
-
+  const authToken = randomBytes(32).toString("hex");
+  const tokenExpiresAt = new Date(Date.now() + tokenTtlDays * 24 * 60 * 60 * 1000).toISOString();
   const initialGatewayUrl = `ws://${hostIp}:${portPair.gatewayPort}`;
   const initialWebuiUrl = `http://${hostIp}:${portPair.gatewayPort}`;
 
   db.run(
     `INSERT INTO licenses
        (license_key, gateway_token, gateway_url, status,
-        owner_tag, gateway_port, bridge_port, provision_status, webui_url)
-     VALUES (?, ?, ?, 'unbound', ?, ?, ?, 'pending', ?)`,
+        owner_tag, gateway_port, bridge_port, provision_status, webui_url,
+        expiry_date, auth_token, token_expires_at, token_ttl_days)
+     VALUES (?, ?, ?, 'unbound', ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     [
       licenseKey,
       gatewayToken,
@@ -73,7 +87,11 @@ licenses.post("/", async (c) => {
       portPair.gatewayPort,
       portPair.bridgePort,
       initialWebuiUrl,
-    ]
+      expiryDate,
+      authToken,
+      tokenExpiresAt,
+      tokenTtlDays,
+    ],
   );
 
   const row = db
@@ -93,7 +111,7 @@ licenses.post("/", async (c) => {
 
   db.run(
     "UPDATE licenses SET compose_project=?, gateway_url=?, webui_url=?, nginx_host=? WHERE id=?",
-    [composeProject, gatewayUrl, webuiUrl, nginxHost, row.id]
+    [composeProject, gatewayUrl, webuiUrl, nginxHost, row.id],
   );
 
   const finalRow = db.query("SELECT * FROM licenses WHERE id=?").get(row.id);
@@ -113,9 +131,15 @@ licenses.patch("/:id", async (c) => {
   if (!existing) return c.json({ success: false, error: "NOT_FOUND" }, 404);
 
   const updates: string[] = [];
-  const values: unknown[] = [];
-  if (body.status) { updates.push("status = ?"); values.push(body.status); }
-  if (body.note !== undefined) { updates.push("note = ?"); values.push(body.note); }
+  const values: any[] = [];
+  if (body.status) {
+    updates.push("status = ?");
+    values.push(body.status);
+  }
+  if (body.note !== undefined) {
+    updates.push("note = ?");
+    values.push(body.note);
+  }
 
   if (updates.length === 0) {
     return c.json({ success: false, error: "NO_FIELDS_TO_UPDATE" }, 400);
