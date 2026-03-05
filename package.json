@@ -1,11 +1,22 @@
 {
   "name": "easy-openclaw-auth",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev:api": "bun run --cwd packages/api dev",
     "dev:ui": "bun run --cwd packages/ui dev",
     "build:ui": "bun run --cwd packages/ui build",
-    "start": "bun run --cwd packages/api start"
+    "start": "bun run --cwd packages/api start",
+    "check:biome": "biome check --write",
+    "check:ui": "bun run --cwd packages/ui check",
+    "check": "bun run check:biome && bun run check:ui",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.2"
   }
 }
