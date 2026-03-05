@@ -2,15 +2,17 @@
   "name": "@openclaw/api",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
-    "test": "bun test"
+    "dev": "bun run --env-file=../../.env --watch src/index.ts",
+    "start": "bun --env-file=../../.env src/index.ts",
+    "test": "bun test --env-file=../../.env"
   },
   "dependencies": {
     "hono": "^4.7.0",
     "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/bun": "^1.3.10",
+    "@types/node": "^25.3.3"
   }
 }
