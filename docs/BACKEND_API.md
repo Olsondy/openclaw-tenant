@@ -1,0 +1,138 @@
+# BACKEND_API
+
+## Base
+- Base path: `/api`
+- Response envelope:
+  - Success: `{ success: true, data: ... }`
+  - Failure: `{ success: false, error: "ERROR_CODE" }`
+
+## Routes
+
+### `POST /api/auth/login`
+- Public route.
+- Request:
+
+```json
+{ "username": "string", "password": "string" }
+```
+
+- Success `200`:
+
+```json
+{ "success": true, "data": { "token": "<jwt>" } }
+```
+
+- Errors:
+  - `400 INVALID_JSON`
+  - `400 MISSING_CREDENTIALS`
+  - `401 INVALID_CREDENTIALS`
+  - `500 SERVER_MISCONFIGURATION`
+
+### `GET /api/licenses`
+- Protected route (`Authorization: Bearer <jwt>`).
+- Returns all licenses ordered by `created_at DESC`.
+
+### `POST /api/licenses`
+- Protected route.
+- Creates a new license and enqueues async provisioning.
+- Optional request body (all fields optional):
+
+```json
+{
+  "ownerTag": "optional-string",
+  "expiryDate": "YYYY-MM-DD",
+  "tokenTtlDays": 30,
+  "hostIp": "192.168.1.100",
+  "baseDomain": "openclaw.example.com"
+}
+```
+
+- `expiryDate`: License 本身失效日期，留空 = 永久。
+- `tokenTtlDays`: Auth Token 有效期（天），默认 30，每次 verify 过期后自动轮换。
+- `hostIp`: 该实例宿主机 IP，留空取环境变量 `OPENCLAW_HOST_IP`。
+- `baseDomain`: 自定义域名，留空使用 `IP:端口`。
+
+- Success `201`: returns inserted row with provision metadata.
+- Errors:
+  - `400 INVALID_OWNER_TAG`
+  - `503 NO_AVAILABLE_PORT`
+
+### `PATCH /api/licenses/:id`
+- Protected route.
+- Body supports:
+  - `status?: string`
+  - `note?: string`
+- Success `200`: returns updated row.
+- Errors:
+  - `404 NOT_FOUND`
+  - `400 NO_FIELDS_TO_UPDATE`
+
+### `POST /api/verify`
+- Public route for client verification/binding.
+- Request:
+
+```json
+{ "hwid": "string", "licenseKey": "string", "deviceName": "string" }
+```
+
+- Behavior summary:
+  - Validates license existence and status.
+  - Blocks when provisioning not ready.
+  - First successful verify binds HWID and activates license.
+  - Triggers optional docker approve command asynchronously.
+
+- Success `200`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "nodeConfig": {
+      "gatewayUrl": "ws://... or wss://...",
+      "gatewayToken": "...",
+      "agentId": "16-char-hex",
+      "deviceName": "...",
+      "authToken": "64-char-hex"
+    },
+    "userProfile": {
+      "licenseStatus": "Valid",
+      "expiryDate": "Permanent or YYYY-MM-DD"
+    }
+  }
+}
+```
+
+- `authToken`: 可轮换的 Auth Token，每个 license 独立，写入对应实例 `openclaw.json` 的 `gateway.auth.token` 和 `gateway.remote.token`，过期后下次 verify 自动刷新。
+
+- Errors:
+  - `400 INVALID_JSON`
+  - `400 MISSING_FIELDS`
+  - `403 INVALID_LICENSE`
+  - `403 LICENSE_REVOKED`
+  - `403 LICENSE_EXPIRED`
+  - `403 HWID_MISMATCH`
+  - `409 PROVISIONING_PENDING`
+  - `409 PROVISIONING_FAILED`
+
+## DB Notes
+- Main tables: `licenses`, `admin_users`
+- DB initialization and migration guard: `packages/api/src/db/client.ts`
+- License includes provisioning fields:
+  - `owner_tag`, `compose_project`, `container_id`, `container_name`
+  - `gateway_port`, `bridge_port`, `webui_url`, `nginx_host`
+  - `provision_status`, `provision_error`, `provision_started_at`, `provision_completed_at`
+- License Auth Token 缓存字段（新增）：
+  - `auth_token`: 当前有效的可轮换 token
+  - `token_expires_at`: token 过期时间（ISO 8601）
+  - `token_ttl_days`: token 轮换周期（天），创建 license 时指定，默认 30
+
+## Middleware Contract
+- JWT middleware applied only to `/api/licenses/*`.
+- If new protected routes are added, they must be explicitly mounted behind `jwtMiddleware`.
+
+## Related Source Files
+- `packages/api/src/index.ts`
+- `packages/api/src/routes/auth.ts`
+- `packages/api/src/routes/licenses.ts`
+- `packages/api/src/routes/verify.ts`
+- `packages/api/src/middleware/jwt.ts`
