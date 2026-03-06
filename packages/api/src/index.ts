@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { getDb } from "./db/client";
 import { jwtMiddleware } from "./middleware/jwt";
 import authRoutes from "./routes/auth";
+import bootstrapConfigRoutes from "./routes/bootstrap-config";
 import licensesRoutes from "./routes/licenses";
 import modelPresetsRoutes from "./routes/model-presets";
 import settingsRoutes from "./routes/settings";
@@ -20,6 +21,7 @@ app.use("*", cors());
 // Public routes
 app.route("/api/auth", authRoutes);
 app.route("/api/verify", verifyRoutes);
+app.route("/api/licenses", bootstrapConfigRoutes);
 
 // Protected routes
 app.use("/api/licenses/*", jwtMiddleware);
