@@ -5,6 +5,7 @@ import { getDb } from "./db/client";
 import { jwtMiddleware } from "./middleware/jwt";
 import authRoutes from "./routes/auth";
 import bootstrapConfigRoutes from "./routes/bootstrap-config";
+import healthRoutes from "./routes/health";
 import licensesRoutes from "./routes/licenses";
 import modelPresetsRoutes from "./routes/model-presets";
 import settingsRoutes from "./routes/settings";
@@ -28,6 +29,7 @@ app.use("/api/licenses/*", jwtMiddleware);
 app.route("/api/licenses", licensesRoutes);
 app.use("/api/settings/*", jwtMiddleware);
 app.route("/api/settings", settingsRoutes);
+app.route("/api/licenses/health", healthRoutes);
 app.route("/api/settings/model-presets", modelPresetsRoutes);
 
 // Serve static UI (built Svelte)
