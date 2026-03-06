@@ -1,3 +1,5 @@
+import { resolveRuntimeCommand, type RuntimeProvider } from "../settingsService";
+
 export interface ScriptRunnerOptions {
   runtimeDir: string;
   configDir: string;
@@ -33,24 +35,32 @@ export async function runProvisionScript(opts: ScriptRunnerOptions): Promise<voi
   }
 }
 
-export async function getContainerId(composeProject: string): Promise<string> {
+export async function getContainerId(
+  composeProject: string,
+  runtimeProvider: RuntimeProvider,
+): Promise<string> {
+  const runtimeCmd = resolveRuntimeCommand(runtimeProvider);
   const proc = Bun.spawn(
-    ["docker", "compose", "-p", composeProject, "ps", "-q", "openclaw-gateway"],
+    [runtimeCmd, "compose", "-p", composeProject, "ps", "-q", "openclaw-gateway"],
     { stdout: "pipe", stderr: "pipe" },
   );
   const exitCode = await proc.exited;
-  if (exitCode !== 0) throw new Error("docker compose ps failed");
+  if (exitCode !== 0) throw new Error(`${runtimeCmd} compose ps failed`);
   const id = (await new Response(proc.stdout).text()).trim();
   if (!id) throw new Error("Container not found after provisioning");
   return id;
 }
 
-export async function getContainerName(containerId: string): Promise<string> {
-  const proc = Bun.spawn(["docker", "inspect", "--format", "{{.Name}}", containerId], {
+export async function getContainerName(
+  containerId: string,
+  runtimeProvider: RuntimeProvider,
+): Promise<string> {
+  const runtimeCmd = resolveRuntimeCommand(runtimeProvider);
+  const proc = Bun.spawn([runtimeCmd, "inspect", "--format", "{{.Name}}", containerId], {
     stdout: "pipe",
     stderr: "pipe",
   });
   const exitCode = await proc.exited;
-  if (exitCode !== 0) throw new Error("docker inspect failed");
+  if (exitCode !== 0) throw new Error(`${runtimeCmd} inspect failed`);
   return (await new Response(proc.stdout).text()).trim().replace(/^\//, "");
 }

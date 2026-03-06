@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import bcrypt from "bcryptjs";
 import { SCHEMA_SQL } from "./schema";
+import { ensureSettingsRow } from "../services/settingsService";
 
 let _db: Database | null = null;
 
@@ -12,6 +13,7 @@ export function getDb(): Database {
   _db.run("PRAGMA journal_mode=WAL");
   _db.run(SCHEMA_SQL);
   ensureLicenseColumns(_db);
+  ensureSettingsRow(_db);
   seedAdmin(_db);
   return _db;
 }
@@ -39,9 +41,13 @@ function ensureLicenseColumns(db: Database): void {
     ["provision_started_at", "TEXT"],
     ["provision_completed_at", "TEXT"],
     ["nginx_host", "TEXT"],
+    ["runtime_provider", "TEXT"],
+    ["runtime_dir", "TEXT"],
+    ["data_dir", "TEXT"],
     ["auth_token", "TEXT"],
     ["token_expires_at", "TEXT"],
     ["token_ttl_days", "INTEGER DEFAULT 30"],
+    ["exec_public_key", "TEXT"],
   ];
 
   for (const [colName, colDef] of newColumns) {

@@ -1,10 +1,11 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { getDb } from "../../db/client";
-import { buildConfigDir, buildNginxHost, buildWorkspaceDir } from "./nameBuilder";
+import { buildConfigDir, buildWorkspaceDir } from "./nameBuilder";
 import { writeNginxConfig } from "./nginxService";
 import { writePairingIfReady } from "./pairingWriter";
 import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
+import { resolveProvisionScriptPath, type RuntimeProvider } from "../settingsService";
 
 const activeJobs = new Map<number, Promise<void>>();
 
@@ -47,19 +48,29 @@ async function runProvisioning(licenseId: number): Promise<void> {
           owner_tag: string;
           gateway_url: string;
           webui_url: string | null;
+          runtime_provider: string | null;
+          runtime_dir: string | null;
+          data_dir: string | null;
+          nginx_host: string | null;
         },
         number
       >(
-        "SELECT compose_project, gateway_port, bridge_port, gateway_token, owner_tag, gateway_url, webui_url FROM licenses WHERE id=?",
+        `SELECT compose_project, gateway_port, bridge_port, gateway_token, owner_tag,
+                gateway_url, webui_url, runtime_provider, runtime_dir, data_dir, nginx_host
+           FROM licenses WHERE id=?`,
       )
       .get(licenseId);
 
     if (!license) throw new Error("License not found");
 
-    const runtimeDir = process.env.OPENCLAW_RUNTIME_DIR!;
-    const dataDir = process.env.OPENCLAW_DATA_DIR!;
-    const provisionScript =
-      process.env.OPENCLAW_PROVISION_SCRIPT ?? `${runtimeDir}/docker-setup.sh`;
+    const runtimeProvider: RuntimeProvider =
+      license.runtime_provider === "podman" ? "podman" : "docker";
+    const runtimeDir = license.runtime_dir ?? process.env.OPENCLAW_RUNTIME_DIR ?? null;
+    const dataDir = license.data_dir ?? process.env.OPENCLAW_DATA_DIR ?? null;
+    if (!runtimeDir || !dataDir) {
+      throw new Error("License runtime configuration missing: runtime_dir/data_dir");
+    }
+    const provisionScript = resolveProvisionScriptPath(runtimeProvider, runtimeDir);
     const configDir = buildConfigDir(dataDir, license.compose_project);
     const workspaceDir = buildWorkspaceDir(dataDir, license.compose_project);
 
@@ -74,8 +85,8 @@ async function runProvisioning(licenseId: number): Promise<void> {
       provisionScript,
     });
 
-    const containerId = await getContainerId(license.compose_project);
-    const containerName = await getContainerName(containerId);
+    const containerId = await getContainerId(license.compose_project, runtimeProvider);
+    const containerName = await getContainerName(containerId, runtimeProvider);
 
     // 读取容器生成的 openclaw.json 校验 token
     let finalToken = license.gateway_token;
@@ -92,13 +103,11 @@ async function runProvisioning(licenseId: number): Promise<void> {
     }
 
     // 可选 Nginx 域名模式
-    const baseDomain = process.env.OPENCLAW_BASE_DOMAIN;
     let gatewayUrl = license.gateway_url;
     let webuiUrl = license.webui_url ?? "";
-    let nginxHost: string | null = null;
+    const nginxHost = license.nginx_host;
 
-    if (baseDomain) {
-      nginxHost = buildNginxHost(license.owner_tag, licenseId, baseDomain);
+    if (nginxHost) {
       const siteDir = process.env.NGINX_SITE_DIR ?? "/etc/nginx/conf.d/openclaw";
       const reloadCmd = process.env.NGINX_RELOAD_CMD ?? "nginx -s reload";
       await writeNginxConfig(

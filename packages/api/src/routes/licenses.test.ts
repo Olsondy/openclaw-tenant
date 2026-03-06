@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { sign } from "hono/jwt";
 import { tmpdir } from "os";
 import { join } from "path";
-import { resetDb } from "../db/client";
+import { getDb, resetDb } from "../db/client";
 import { jwtMiddleware } from "../middleware/jwt";
 import licensesRoutes from "./licenses";
 
@@ -130,6 +130,40 @@ describe("POST /licenses – provision fields", () => {
     });
     const body = (await res.json()) as any;
     expect(body.data.gateway_url).toContain("ws://10.0.0.1:");
+  });
+
+  test("uses settings base_domain when request does not override", async () => {
+    const db = getDb();
+    db.run("UPDATE settings SET base_domain=? WHERE id=1", ["tenant.example.com"]);
+
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: { ...(await authHeader()), "Content-Type": "application/json" },
+      body: JSON.stringify({ ownerTag: "alice" }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as any;
+    expect(body.data.nginx_host).toBe("alice-1.tenant.example.com");
+    expect(body.data.gateway_url).toBe("wss://alice-1.tenant.example.com");
+    expect(body.data.webui_url).toBe("https://alice-1.tenant.example.com");
+  });
+
+  test("request baseDomain override takes priority over settings", async () => {
+    const db = getDb();
+    db.run("UPDATE settings SET base_domain=? WHERE id=1", ["tenant.example.com"]);
+
+    const res = await app.request("/licenses", {
+      method: "POST",
+      headers: { ...(await authHeader()), "Content-Type": "application/json" },
+      body: JSON.stringify({ ownerTag: "alice", baseDomain: "custom.example.com" }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as any;
+    expect(body.data.nginx_host).toBe("alice-1.custom.example.com");
+    expect(body.data.gateway_url).toBe("wss://alice-1.custom.example.com");
+    expect(body.data.webui_url).toBe("https://alice-1.custom.example.com");
   });
 
   test("returns 400 INVALID_OWNER_TAG for invalid ownerTag", async () => {

@@ -49,13 +49,32 @@
 
 - `expiryDate`: License 本身失效日期，留空 = 永久。
 - `tokenTtlDays`: Auth Token 有效期（天），默认 30，每次 verify 过期后自动轮换。
-- `hostIp`: 该实例宿主机 IP，留空取环境变量 `OPENCLAW_HOST_IP`。
-- `baseDomain`: 自定义域名，留空使用 `IP:端口`。
+- `hostIp`: 覆盖本次创建的宿主机 IP，留空取 `settings.host_ip`。
+- `baseDomain`: 覆盖本次创建的域名基准，留空取 `settings.base_domain`；若最终存在域名，会写入并冻结到 `licenses.nginx_host`。
 
 - Success `201`: returns inserted row with provision metadata.
 - Errors:
   - `400 INVALID_OWNER_TAG`
   - `503 NO_AVAILABLE_PORT`
+
+### `GET /api/settings`
+- Protected route (`Authorization: Bearer <jwt>`).
+- Returns current global defaults from `settings` table.
+
+### `PUT /api/settings`
+- Protected route.
+- Updates global defaults in `settings` table.
+- Required fields:
+  - `runtime_provider`: `"docker"` or `"podman"`
+  - `runtime_dir`, `data_dir`, `host_ip`
+  - `gateway_port_start`, `gateway_port_end`, `bridge_port_start`, `bridge_port_end`
+- Optional fields:
+  - `base_domain` (nullable)
+- Errors:
+  - `400 INVALID_JSON`
+  - `400 INVALID_RUNTIME_PROVIDER`
+  - `400 INVALID_SETTINGS`
+  - `400 INVALID_PORT_RANGE`
 
 ### `PATCH /api/licenses/:id`
 - Protected route.
@@ -114,24 +133,27 @@
   - `409 PROVISIONING_FAILED`
 
 ## DB Notes
-- Main tables: `licenses`, `admin_users`
+- Main tables: `licenses`, `admin_users`, `settings`
 - DB initialization and migration guard: `packages/api/src/db/client.ts`
 - License includes provisioning fields:
   - `owner_tag`, `compose_project`, `container_id`, `container_name`
   - `gateway_port`, `bridge_port`, `webui_url`, `nginx_host`
+  - `runtime_provider`, `runtime_dir`, `data_dir`
   - `provision_status`, `provision_error`, `provision_started_at`, `provision_completed_at`
 - License Auth Token 缓存字段（新增）：
   - `auth_token`: 当前有效的可轮换 token
   - `token_expires_at`: token 过期时间（ISO 8601）
   - `token_ttl_days`: token 轮换周期（天），创建 license 时指定，默认 30
+- Settings stores global defaults for future licenses; each created license keeps its own effective snapshot.
 
 ## Middleware Contract
-- JWT middleware applied only to `/api/licenses/*`.
+- JWT middleware applied to `/api/licenses/*` and `/api/settings/*`.
 - If new protected routes are added, they must be explicitly mounted behind `jwtMiddleware`.
 
 ## Related Source Files
 - `packages/api/src/index.ts`
 - `packages/api/src/routes/auth.ts`
 - `packages/api/src/routes/licenses.ts`
+- `packages/api/src/routes/settings.ts`
 - `packages/api/src/routes/verify.ts`
 - `packages/api/src/middleware/jwt.ts`

@@ -116,16 +116,18 @@ export async function writePairedJson(
  * 任意一个条件不满足则 no-op，等待另一时机（provision 完成 or verify 成功）再触发。
  */
 export async function writePairingIfReady(licenseId: number): Promise<void> {
-  const dataDir = process.env.OPENCLAW_DATA_DIR;
-  if (!dataDir) return;
-
   const db = getDb();
   const row = db
     .query<
-      { exec_public_key: string | null; provision_status: string | null; compose_project: string | null },
+      {
+        exec_public_key: string | null;
+        provision_status: string | null;
+        compose_project: string | null;
+        data_dir: string | null;
+      },
       number
     >(
-      "SELECT exec_public_key, provision_status, compose_project FROM licenses WHERE id = ?",
+      "SELECT exec_public_key, provision_status, compose_project, data_dir FROM licenses WHERE id = ?",
     )
     .get(licenseId);
 
@@ -133,10 +135,11 @@ export async function writePairingIfReady(licenseId: number): Promise<void> {
   if (!row.exec_public_key) return;
   if (row.provision_status !== "ready") return;
   if (!row.compose_project) return;
+  if (!row.data_dir) return;
 
   const deviceId = deriveDeviceId(row.exec_public_key);
   if (!deviceId) return;
 
-  const configDir = buildConfigDir(dataDir, row.compose_project);
+  const configDir = buildConfigDir(row.data_dir, row.compose_project);
   await writePairedJson(configDir, deviceId, row.exec_public_key);
 }

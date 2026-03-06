@@ -13,6 +13,7 @@
 ## ✨ Features
 
 - **Centralized License Manager**: Generate and manage user licenses, expire controls, and specific container bindings with ease.
+- **Global Settings + License Snapshot**: Manage runtime defaults centrally, while each created license stores effective runtime/domain snapshot for reproducible provisioning.
 - **Dynamic Token Caching**: Generate distinct authorization tokens across multiple tenants securely. Tokens automatically rotate to instance `openclaw.json` config settings.
 - **Hardware Binding (HWID)**: Automatically anchor the specific physical device instance matching upon first usage verification loop.
 - **Async Container Provisioning Queue**: Manages local/remote docker container initializations independently tracking states `pending|running|ready|failed`.
@@ -70,7 +71,7 @@ easy-openclaw-auth/
 │   ├── api/            # Hono API Backend (SQLite Database logic)
 │   └── ui/             # Svelte 5 Single Page Application Admin UI
 ├── docs/               # Technical specs and detailed API routing details
-├── .env                # Global variables and provision settings
+├── .env                # Startup defaults (used to seed settings table)
 └── package.json        # Workspace declaration & root scripts
 ```
 

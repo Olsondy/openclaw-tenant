@@ -24,6 +24,9 @@ export const SCHEMA_SQL = `
     provision_started_at TEXT,
     provision_completed_at TEXT,
     nginx_host           TEXT,
+    runtime_provider     TEXT,
+    runtime_dir          TEXT,
+    data_dir             TEXT,
     auth_token           TEXT,
     token_expires_at     TEXT,
     token_ttl_days       INTEGER DEFAULT 30,
@@ -34,5 +37,19 @@ export const SCHEMA_SQL = `
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    id                  INTEGER PRIMARY KEY CHECK (id = 1),
+    runtime_provider    TEXT NOT NULL DEFAULT 'docker',
+    runtime_dir         TEXT NOT NULL DEFAULT '/opt/openclaw',
+    data_dir            TEXT NOT NULL DEFAULT '/data/openclaw',
+    host_ip             TEXT NOT NULL DEFAULT '127.0.0.1',
+    base_domain         TEXT,
+    gateway_port_start  INTEGER NOT NULL DEFAULT 18789,
+    gateway_port_end    INTEGER NOT NULL DEFAULT 18999,
+    bridge_port_start   INTEGER NOT NULL DEFAULT 28789,
+    bridge_port_end     INTEGER NOT NULL DEFAULT 28999,
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `;

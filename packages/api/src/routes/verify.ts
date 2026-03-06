@@ -27,17 +27,21 @@ interface LicenseRow {
   token_ttl_days: number | null;
   exec_public_key: string | null;
   compose_project: string | null;
+  data_dir: string | null;
 }
 
 const verify = new Hono();
 
 /**
  * 将新的 auth token 同步写入对应实例的 openclaw.json。
- * 路径：{OPENCLAW_DATA_DIR}/{compose_project}/.openclaw/openclaw.json
+ * 路径：{data_dir}/{compose_project}/.openclaw/openclaw.json
  * 若文件不存在（实例尚未完成 provision），则静默跳过。
  */
-async function syncTokenToConfig(composeProject: string | null, token: string): Promise<void> {
-  const dataDir = process.env.OPENCLAW_DATA_DIR;
+async function syncTokenToConfig(
+  dataDir: string | null,
+  composeProject: string | null,
+  token: string,
+): Promise<void> {
   if (!dataDir) return;
   if (!composeProject) return;
 
@@ -130,7 +134,7 @@ verify.post("/", async (c) => {
   if (tokenStillValid) {
     // 未过期：直接复用，同步写入 json（确保实例 config 始终最新）
     authToken = license.auth_token!;
-    await syncTokenToConfig(license.compose_project, authToken);
+    await syncTokenToConfig(license.data_dir, license.compose_project, authToken);
   } else {
     // 已过期或首次：生成新 token
     authToken = randomBytes(32).toString("hex");
@@ -138,7 +142,7 @@ verify.post("/", async (c) => {
     const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
     // 先写文件，再更新 DB（写文件失败不影响 DB 记录）
-    await syncTokenToConfig(license.compose_project, authToken);
+    await syncTokenToConfig(license.data_dir, license.compose_project, authToken);
 
     db.run("UPDATE licenses SET auth_token=?, token_expires_at=? WHERE id=?", [
       authToken,

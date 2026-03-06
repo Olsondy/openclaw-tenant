@@ -1,5 +1,8 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { getDb, resetDb } from "./client";
 import { SCHEMA_SQL } from "./schema";
 
@@ -18,6 +21,15 @@ describe("SCHEMA_SQL", () => {
     db.run(SCHEMA_SQL);
     const row = db
       .query("SELECT name FROM sqlite_master WHERE type='table' AND name='admin_users'")
+      .get();
+    expect(row).toBeTruthy();
+  });
+
+  test("creates settings table", () => {
+    const db = new Database(":memory:");
+    db.run(SCHEMA_SQL);
+    const row = db
+      .query("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
       .get();
     expect(row).toBeTruthy();
   });
@@ -64,6 +76,10 @@ describe("ensureLicenseColumns", () => {
       "provision_started_at",
       "provision_completed_at",
       "nginx_host",
+      "exec_public_key",
+      "runtime_provider",
+      "runtime_dir",
+      "data_dir",
     ];
 
     for (const col of expectedColumns) {
@@ -71,7 +87,17 @@ describe("ensureLicenseColumns", () => {
     }
   });
 
+  test("initializes default settings row", () => {
+    const db = getDb();
+    const row = db.query("SELECT id FROM settings WHERE id = 1").get() as Record<string, unknown>;
+    expect(row.id).toBe(1);
+  });
+
   test("ensureLicenseColumns sets NULL provision_status to ready on existing rows", () => {
+    const dbFile = join(tmpdir(), `openclaw-schema-migration-${Date.now()}.db`);
+    process.env.DB_PATH = dbFile;
+    resetDb();
+
     const db = getDb();
     db.run(
       `INSERT INTO licenses (license_key, gateway_token, gateway_url, provision_status)
@@ -85,5 +111,8 @@ describe("ensureLicenseColumns", () => {
       .query("SELECT provision_status FROM licenses WHERE license_key = 'MIGRATION-TEST-001'")
       .get() as Record<string, unknown>;
     expect(row.provision_status).toBe("ready");
+
+    resetDb();
+    rmSync(dbFile, { force: true });
   });
 });

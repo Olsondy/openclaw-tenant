@@ -60,6 +60,22 @@ export interface License {
   token_ttl_days: number | null;
 }
 
+export type RuntimeProvider = "docker" | "podman";
+
+export interface Settings {
+  id: number;
+  runtime_provider: RuntimeProvider;
+  runtime_dir: string;
+  data_dir: string;
+  host_ip: string;
+  base_domain: string | null;
+  gateway_port_start: number;
+  gateway_port_end: number;
+  bridge_port_start: number;
+  bridge_port_end: number;
+  updated_at: string;
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ success: boolean; data: { token: string } }>("/auth/login", {
@@ -85,5 +101,13 @@ export const api = {
     request<{ success: boolean; data: License }>(`/licenses/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: "revoked" }),
+    }),
+
+  getSettings: () => request<{ success: boolean; data: Settings }>("/settings"),
+
+  updateSettings: (payload: Omit<Settings, "id" | "updated_at">) =>
+    request<{ success: boolean; data: Settings }>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
     }),
 };

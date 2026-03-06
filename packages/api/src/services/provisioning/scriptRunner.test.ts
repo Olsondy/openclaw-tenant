@@ -7,13 +7,20 @@ afterEach(() => {
   (Bun as any).spawn = originalSpawn;
 });
 
-function makeSpawnStub(exitCode: number, stdout = "", stderr = "") {
-  return () =>
-    ({
+function makeSpawnStub(
+  exitCode: number,
+  stdout = "",
+  stderr = "",
+  onCall?: (args: string[]) => void,
+) {
+  return (args: string[]) => {
+    onCall?.(args);
+    return {
       exited: Promise.resolve(exitCode),
-      stdout: new Response(stdout),
-      stderr: new Response(stderr),
-    }) as any;
+      stdout,
+      stderr,
+    } as any;
+  };
 }
 
 describe("runProvisionScript", () => {
@@ -53,18 +60,48 @@ describe("runProvisionScript", () => {
 describe("getContainerId", () => {
   test("returns trimmed container ID", async () => {
     (Bun as any).spawn = makeSpawnStub(0, "abc123\n");
-    expect(await getContainerId("openclaw-test-1")).toBe("abc123");
+    expect(await getContainerId("openclaw-test-1", "docker")).toBe("abc123");
   });
 
   test("throws when container not found", async () => {
     (Bun as any).spawn = makeSpawnStub(0, "");
-    await expect(getContainerId("openclaw-test-1")).rejects.toThrow("Container not found");
+    await expect(getContainerId("openclaw-test-1", "docker")).rejects.toThrow(
+      "Container not found",
+    );
+  });
+
+  test("uses podman compose when runtime_provider=podman", async () => {
+    let calledArgs: string[] = [];
+    (Bun as any).spawn = makeSpawnStub(0, "abc123\n", "", (args) => {
+      calledArgs = args;
+    });
+
+    expect(await getContainerId("openclaw-test-1", "podman")).toBe("abc123");
+    expect(calledArgs).toEqual([
+      "podman",
+      "compose",
+      "-p",
+      "openclaw-test-1",
+      "ps",
+      "-q",
+      "openclaw-gateway",
+    ]);
   });
 });
 
 describe("getContainerName", () => {
   test("strips leading slash from container name", async () => {
     (Bun as any).spawn = makeSpawnStub(0, "/openclaw-alice-1-gateway\n");
-    expect(await getContainerName("abc123")).toBe("openclaw-alice-1-gateway");
+    expect(await getContainerName("abc123", "docker")).toBe("openclaw-alice-1-gateway");
+  });
+
+  test("uses podman inspect when runtime_provider=podman", async () => {
+    let calledArgs: string[] = [];
+    (Bun as any).spawn = makeSpawnStub(0, "/openclaw-alice-1-gateway\n", "", (args) => {
+      calledArgs = args;
+    });
+
+    expect(await getContainerName("abc123", "podman")).toBe("openclaw-alice-1-gateway");
+    expect(calledArgs).toEqual(["podman", "inspect", "--format", "{{.Name}}", "abc123"]);
   });
 });

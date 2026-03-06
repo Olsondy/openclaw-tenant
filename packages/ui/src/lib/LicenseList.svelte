@@ -1,5 +1,11 @@
 <script lang="ts">
-import { api, clearToken, type License } from "./api";
+import {
+  api,
+  clearToken,
+  type License,
+  type RuntimeProvider,
+  type Settings,
+} from "./api";
 
 interface Props {
   onLogout: () => void;
@@ -9,16 +15,31 @@ let { onLogout }: Props = $props();
 let licenses = $state<License[]>([]);
 let loading = $state(true);
 let generating = $state(false);
+let settingsLoading = $state(true);
+let savingSettings = $state(false);
 let error = $state("");
+let settings = $state<Settings | null>(null);
 
 // 弹窗状态
 let showModal = $state(false);
+let showSettingsModal = $state(false);
 // 表单字段
 let formOwnerTag = $state("");
 let formExpiryDate = $state(""); // 留空 = 永久
 let formTokenTtlDays = $state(30);
 let formHostIp = $state(""); // 留空 = 服务器默认
-let formBaseDomain = $state(""); // 留空 = 使用 IP
+let formBaseDomain = $state(""); // 留空 = 使用全局 settings.base_domain
+
+// Settings 表单字段
+let settingsRuntimeProvider = $state<RuntimeProvider>("docker");
+let settingsRuntimeDir = $state("");
+let settingsDataDir = $state("");
+let settingsHostIp = $state("");
+let settingsBaseDomain = $state("");
+let settingsGatewayPortStart = $state(18789);
+let settingsGatewayPortEnd = $state(18999);
+let settingsBridgePortStart = $state(28789);
+let settingsBridgePortEnd = $state(28999);
 
 const STATUS = {
   unbound: { label: "未绑定", cls: "bg-gray-100 text-gray-600" },
@@ -26,14 +47,32 @@ const STATUS = {
   revoked: { label: "已撤销", cls: "bg-red-100 text-red-600" },
 } as const;
 
+function applySettingsToForm(row: Settings) {
+  settingsRuntimeProvider = row.runtime_provider;
+  settingsRuntimeDir = row.runtime_dir;
+  settingsDataDir = row.data_dir;
+  settingsHostIp = row.host_ip;
+  settingsBaseDomain = row.base_domain ?? "";
+  settingsGatewayPortStart = row.gateway_port_start;
+  settingsGatewayPortEnd = row.gateway_port_end;
+  settingsBridgePortStart = row.bridge_port_start;
+  settingsBridgePortEnd = row.bridge_port_end;
+}
+
 async function load() {
   try {
-    const res = await api.getLicenses();
-    licenses = res.data;
+    const [licenseRes, settingsRes] = await Promise.all([
+      api.getLicenses(),
+      api.getSettings(),
+    ]);
+    licenses = licenseRes.data;
+    settings = settingsRes.data;
+    applySettingsToForm(settingsRes.data);
   } catch (e) {
     error = e instanceof Error ? e.message : "加载失败";
   } finally {
     loading = false;
+    settingsLoading = false;
   }
 }
 
@@ -41,9 +80,38 @@ function openModal() {
   formOwnerTag = "";
   formExpiryDate = "";
   formTokenTtlDays = 30;
-  formHostIp = "";
+  formHostIp = settings?.host_ip ?? "";
   formBaseDomain = "";
   showModal = true;
+}
+
+function openSettings() {
+  if (settings) applySettingsToForm(settings);
+  showSettingsModal = true;
+}
+
+async function saveSettings() {
+  savingSettings = true;
+  try {
+    const res = await api.updateSettings({
+      runtime_provider: settingsRuntimeProvider,
+      runtime_dir: settingsRuntimeDir.trim(),
+      data_dir: settingsDataDir.trim(),
+      host_ip: settingsHostIp.trim(),
+      base_domain: settingsBaseDomain.trim() || null,
+      gateway_port_start: Number(settingsGatewayPortStart),
+      gateway_port_end: Number(settingsGatewayPortEnd),
+      bridge_port_start: Number(settingsBridgePortStart),
+      bridge_port_end: Number(settingsBridgePortEnd),
+    });
+    settings = res.data;
+    applySettingsToForm(res.data);
+    showSettingsModal = false;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "保存设置失败";
+  } finally {
+    savingSettings = false;
+  }
 }
 
 async function generate() {
@@ -145,16 +213,39 @@ $effect(() => {
           <h2 class="text-lg font-semibold text-slate-800">授权管理 (Licenses)</h2>
           <p class="text-sm text-slate-500 mt-1">管理用户节点、硬件绑定与容器部署状态</p>
         </div>
-        <button
-          onclick={openModal}
-          class="relative overflow-hidden group bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-md shadow-slate-900/10 text-sm flex items-center gap-2"
-        >
-          <div class="absolute inset-0 bg-white/20 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-500"></div>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          生成 License
-        </button>
+        <div class="flex items-center gap-2.5">
+          <button
+            onclick={openSettings}
+            disabled={settingsLoading}
+            class="bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-xl transition-all border border-slate-200/80 shadow-sm text-sm flex items-center gap-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11.983 13.941a2 2 0 100-3.882 2 2 0 000 3.882z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3.055 11a8.03 8.03 0 01.769-2.83l2.055.333a6.061 6.061 0 011.304-1.303l-.333-2.055A8.03 8.03 0 0110 4.055l.849 1.903a6.052 6.052 0 012.302 0L14 4.055a8.03 8.03 0 012.83.769l-.333 2.055a6.06 6.06 0 011.303 1.304l2.055-.333A8.03 8.03 0 0120.945 11l-1.903.849a6.052 6.052 0 010 2.302l1.903.849a8.03 8.03 0 01-.769 2.83l-2.055-.333a6.061 6.061 0 01-1.304 1.303l.333 2.055A8.03 8.03 0 0114 20.945l-.849-1.903a6.052 6.052 0 01-2.302 0L10 20.945a8.03 8.03 0 01-2.83-.769l.333-2.055a6.06 6.06 0 01-1.303-1.304l-2.055.333A8.03 8.03 0 013.055 15l1.903-.849a6.052 6.052 0 010-2.302L3.055 11z"
+              />
+            </svg>
+            {settingsLoading ? "设置加载中..." : "全局设置"}
+          </button>
+          <button
+            onclick={openModal}
+            class="relative overflow-hidden group bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-md shadow-slate-900/10 text-sm flex items-center gap-2"
+          >
+            <div class="absolute inset-0 bg-white/20 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-500"></div>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            生成 License
+          </button>
+        </div>
       </div>
 
       <!-- Table -->
@@ -444,12 +535,12 @@ $effect(() => {
         <!-- 宿主机 IP -->
         <div>
           <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
-            宿主机 IP (Host IP) <span class="text-slate-400 font-normal ml-1">留空使用默认</span>
+            宿主机 IP (Host IP) <span class="text-slate-400 font-normal ml-1">默认取全局设置</span>
           </label>
           <input
             type="text"
             bind:value={formHostIp}
-            placeholder="e.g. 192.168.1.100"
+            placeholder={settings?.host_ip ?? "e.g. 192.168.1.100"}
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono placeholder:font-sans placeholder:text-slate-400 text-slate-700"
           />
         </div>
@@ -457,12 +548,12 @@ $effect(() => {
         <!-- 自定义域名 -->
         <div>
           <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
-            独立域名接入 <span class="text-slate-400 font-normal ml-1">不需要则留空</span>
+            独立域名接入 <span class="text-slate-400 font-normal ml-1">留空继承全局域名</span>
           </label>
           <input
             type="text"
             bind:value={formBaseDomain}
-            placeholder="e.g. openclaw.example.com"
+            placeholder={settings?.base_domain ?? "e.g. openclaw.example.com"}
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400 text-slate-700"
           />
         </div>
@@ -485,6 +576,141 @@ $effect(() => {
             签发部署中...
           {:else}
             确认创建
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showSettingsModal}
+  <div
+    class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) showSettingsModal = false
+    }}
+  >
+    <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+      <div class="relative px-6 py-5 border-b border-slate-100/80 flex items-center justify-between z-10">
+        <div>
+          <h3 class="text-slate-800 font-bold text-lg tracking-tight">全局运行设置</h3>
+          <p class="text-[13px] text-slate-500 mt-1">
+            `base_domain` 是默认域名；create license 若填写域名，会覆盖并冻结到该 license。
+          </p>
+        </div>
+        <button onclick={() => (showSettingsModal = false)} class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Runtime Provider</label>
+            <select
+              bind:value={settingsRuntimeProvider}
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
+            >
+              <option value="docker">docker</option>
+              <option value="podman">podman</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Host IP</label>
+            <input
+              type="text"
+              bind:value={settingsHostIp}
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
+            />
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Runtime Dir</label>
+            <input
+              type="text"
+              bind:value={settingsRuntimeDir}
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
+            />
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Data Dir</label>
+            <input
+              type="text"
+              bind:value={settingsDataDir}
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
+            />
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Base Domain (Global Default)</label>
+            <input
+              type="text"
+              bind:value={settingsBaseDomain}
+              placeholder="留空则走 IP 模式"
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
+            />
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Gateway Port Range</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                bind:value={settingsGatewayPortStart}
+                class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-3 py-2.5 outline-none transition-all"
+              />
+              <span class="text-slate-400">-</span>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                bind:value={settingsGatewayPortEnd}
+                class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-3 py-2.5 outline-none transition-all"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Bridge Port Range</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                bind:value={settingsBridgePortStart}
+                class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-3 py-2.5 outline-none transition-all"
+              />
+              <span class="text-slate-400">-</span>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                bind:value={settingsBridgePortEnd}
+                class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-3 py-2.5 outline-none transition-all"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl">
+        <button
+          onclick={() => (showSettingsModal = false)}
+          disabled={savingSettings}
+          class="px-5 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-200/50 transition-colors disabled:opacity-50"
+        >
+          取消
+        </button>
+        <button
+          onclick={saveSettings}
+          disabled={savingSettings}
+          class="bg-slate-900 hover:bg-slate-800 active:bg-slate-950 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all text-sm flex items-center gap-2 shadow-sm shadow-slate-900/20"
+        >
+          {#if savingSettings}
+            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            保存中...
+          {:else}
+            保存设置
           {/if}
         </button>
       </div>

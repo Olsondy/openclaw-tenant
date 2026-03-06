@@ -17,19 +17,25 @@ const TEST_DIR = join(tmpdir(), `pairingWriter-test-${Date.now()}`);
 
 function seedLicense(
   db: ReturnType<typeof getDb>,
-  opts: { provisionStatus?: string; execPublicKey?: string | null; composeProject?: string } = {},
+  opts: {
+    provisionStatus?: string;
+    execPublicKey?: string | null;
+    composeProject?: string;
+    dataDir?: string;
+  } = {},
 ) {
   const {
     provisionStatus = "ready",
     execPublicKey = "dGVzdHB1YmxpY2tleXJhdw",
     composeProject = "openclaw-test-1",
+    dataDir = TEST_DIR,
   } =
     opts;
   db.run(
     `INSERT INTO licenses
-       (license_key, gateway_token, gateway_url, status, provision_status, exec_public_key, compose_project)
-     VALUES ('TEST-KEY-001', 'tok', 'ws://gw:18789', 'unbound', ?, ?, ?)`,
-    [provisionStatus, execPublicKey, composeProject],
+       (license_key, gateway_token, gateway_url, status, provision_status, exec_public_key, compose_project, data_dir)
+     VALUES ('TEST-KEY-001', 'tok', 'ws://gw:18789', 'unbound', ?, ?, ?, ?)`,
+    [provisionStatus, execPublicKey, composeProject, dataDir],
   );
   const row = db
     .query<{ id: number }, string>("SELECT id FROM licenses WHERE license_key = ?")
@@ -44,7 +50,7 @@ beforeEach(() => {
   process.env.DB_PATH = ":memory:";
   process.env.ADMIN_USER = "admin";
   process.env.ADMIN_PASS = "x";
-  process.env.OPENCLAW_DATA_DIR = TEST_DIR;
+  process.env.OPENCLAW_DATA_DIR = "/wrong/openclaw/data-dir";
   mkdirSync(TEST_DIR, { recursive: true });
 });
 

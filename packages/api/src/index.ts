@@ -5,6 +5,7 @@ import { getDb } from "./db/client";
 import { jwtMiddleware } from "./middleware/jwt";
 import authRoutes from "./routes/auth";
 import licensesRoutes from "./routes/licenses";
+import settingsRoutes from "./routes/settings";
 import verifyRoutes from "./routes/verify";
 import { resumePendingProvisioning } from "./services/provisioning/licenseProvisioningService";
 
@@ -22,6 +23,8 @@ app.route("/api/verify", verifyRoutes);
 // Protected routes
 app.use("/api/licenses/*", jwtMiddleware);
 app.route("/api/licenses", licensesRoutes);
+app.use("/api/settings/*", jwtMiddleware);
+app.route("/api/settings", settingsRoutes);
 
 // Serve static UI (built Svelte)
 const uiDist = process.env.UI_DIST_PATH ?? "../ui/dist";

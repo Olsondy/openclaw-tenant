@@ -27,7 +27,7 @@ This document covers admin authentication for the management UI and protected AP
 
 ### Protected Routes Middleware
 - File: `packages/api/src/middleware/jwt.ts`
-- Applied at: `/api/licenses/*` in `packages/api/src/index.ts`
+- Applied at: `/api/licenses/*` and `/api/settings/*` in `packages/api/src/index.ts`
 - Requires header: `Authorization: Bearer <jwt>`
 - Error responses:
   - `UNAUTHORIZED` (401): missing/invalid bearer header

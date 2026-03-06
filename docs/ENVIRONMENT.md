@@ -14,21 +14,26 @@ Runtime environment contract for API/UI startup and provisioning operations.
 | `DB_PATH` | `openclaw.db` | No | SQLite file path |
 | `UI_DIST_PATH` | `../ui/dist` | No | Static UI output directory |
 
-## Provisioning Variables
+## Provisioning / Settings Seed Variables
 
 | Variable | Default | Required | Purpose |
 |---|---|---|---|
-| `OPENCLAW_DATA_DIR` | `/data/openclaw` | Yes for provisioning | Host data root for per-license dirs |
-| `OPENCLAW_RUNTIME_DIR` | `/opt/openclaw` | Yes for provisioning | Directory where setup script runs |
-| `OPENCLAW_PROVISION_SCRIPT` | `${OPENCLAW_RUNTIME_DIR}/docker-setup.sh` | No | Script path override |
-| `OPENCLAW_HOST_IP` | `192.168.1.100` | No | Non-domain gateway/web URL host |
-| `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Gateway port range start |
-| `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Gateway port range end |
-| `OPENCLAW_BRIDGE_PORT_START` | `28789` | No | Bridge port range start |
-| `OPENCLAW_BRIDGE_PORT_END` | `28999` | No | Bridge port range end |
-| `OPENCLAW_BASE_DOMAIN` | empty | No | Enable domain mode when set |
+| `OPENCLAW_DATA_DIR` | `/data/openclaw` | No | Initial default for `settings.data_dir` |
+| `OPENCLAW_RUNTIME_DIR` | `/opt/openclaw` | No | Initial default for `settings.runtime_dir` |
+| `OPENCLAW_HOST_IP` | `127.0.0.1` | No | Initial default for `settings.host_ip` |
+| `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Initial default for `settings.gateway_port_start` |
+| `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Initial default for `settings.gateway_port_end` |
+| `OPENCLAW_BRIDGE_PORT_START` | `28789` | No | Initial default for `settings.bridge_port_start` |
+| `OPENCLAW_BRIDGE_PORT_END` | `28999` | No | Initial default for `settings.bridge_port_end` |
+| `OPENCLAW_BASE_DOMAIN` | empty | No | Initial default for `settings.base_domain` |
 | `NGINX_SITE_DIR` | `/etc/nginx/conf.d/openclaw` | Domain mode | Where generated nginx conf is written |
 | `NGINX_RELOAD_CMD` | `nginx -s reload` | Domain mode | Nginx reload command |
+
+## Precedence Notes
+- `OPENCLAW_*` values are used to seed `settings` row when it does not exist.
+- After `settings` row is created, global config is managed by DB/UI (`/api/settings`).
+- On `POST /api/licenses`, effective runtime/domain values are copied into license row as snapshot.
+- Provisioning should execute against values stored on each license (`runtime_provider/runtime_dir/data_dir/nginx_host`).
 
 ## Local Development Baseline
 1. Copy `.env.example` to `.env`.
