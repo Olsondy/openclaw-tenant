@@ -31,6 +31,15 @@ export async function patchModelApiKey(configDir: string, secret: string): Promi
   }
   const providers = models.providers as Record<string, Record<string, unknown>>;
 
+  if (!data.auth || typeof data.auth !== "object") {
+    data.auth = {};
+  }
+  const auth = data.auth as Record<string, unknown>;
+  if (!auth.profiles || typeof auth.profiles !== "object") {
+    auth.profiles = {};
+  }
+  const profiles = auth.profiles as Record<string, unknown>;
+
   for (const { provider_id, api_key_enc } of enabledWithKey) {
     let apiKey: string;
     try {
@@ -43,6 +52,11 @@ export async function patchModelApiKey(configDir: string, secret: string): Promi
       providers[provider_id] = {};
     }
     providers[provider_id] = { ...providers[provider_id], apiKey };
+
+    const profileKey = `${provider_id}:default`;
+    if (!profiles[profileKey]) {
+      profiles[profileKey] = { provider: provider_id, mode: "api_key" };
+    }
   }
 
   await writeFile(configPath, JSON.stringify(data, null, 2));
