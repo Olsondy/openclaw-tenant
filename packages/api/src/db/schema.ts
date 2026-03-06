@@ -69,7 +69,7 @@ export const SCHEMA_SQL = `
   INSERT OR IGNORE INTO model_presets
     (provider_id, label, base_url, api, model_id, enabled)
   VALUES
-    ('zhipuai', 'GLM-4-Flash (智谱AI)',
+    ('zai', 'GLM-4.7 Flash (智谱AI)',
      'https://open.bigmodel.cn/api/paas/v4/',
-     'openai-completions', 'glm-4-flash-250414', 1);
+     'openai-completions', 'glm-4.7-flash', 1);
 `;
