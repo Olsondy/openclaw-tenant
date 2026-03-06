@@ -30,7 +30,8 @@ export const SCHEMA_SQL = `
     auth_token           TEXT,
     token_expires_at     TEXT,
     token_ttl_days       INTEGER DEFAULT 30,
-    exec_public_key      TEXT
+    exec_public_key      TEXT,
+    wizard_feishu_done   INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS admin_users (
@@ -52,4 +53,23 @@ export const SCHEMA_SQL = `
     bridge_port_end     INTEGER NOT NULL DEFAULT 28999,
     updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS model_presets (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id  TEXT NOT NULL UNIQUE,
+    label        TEXT NOT NULL,
+    base_url     TEXT NOT NULL,
+    api          TEXT NOT NULL,
+    model_id     TEXT NOT NULL,
+    api_key_enc  TEXT,
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  INSERT OR IGNORE INTO model_presets
+    (provider_id, label, base_url, api, model_id, enabled)
+  VALUES
+    ('zhipuai', 'GLM-4-Flash (智谱AI)',
+     'https://open.bigmodel.cn/api/paas/v4/',
+     'openai-completions', 'glm-4-flash-250414', 1);
 `;
