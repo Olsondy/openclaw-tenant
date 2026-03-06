@@ -22,7 +22,7 @@ interface LicenseRow {
   expiry_date: string | null;
   provision_status: string | null;
   container_name: string | null;
-  auth_token: string | null;
+
   token_expires_at: string | null;
   token_ttl_days: number | null;
   exec_public_key: string | null;
@@ -34,7 +34,7 @@ interface LicenseRow {
 const verify = new Hono();
 
 /**
- * 将新的 auth token 同步写入对应实例的 openclaw.json。
+ * 将 gateway_token 同步写入对应实例的 openclaw.json。
  * 路径：{data_dir}/{compose_project}/.openclaw/openclaw.json
  * 若文件不存在（实例尚未完成 provision），则静默跳过。
  */
@@ -122,28 +122,26 @@ verify.post("/", async (c) => {
   if (publicKey && publicKey !== license.exec_public_key) {
     db.run("UPDATE licenses SET exec_public_key=? WHERE id=?", [publicKey, license.id]);
   }
-  // ─── Token 缓存逻辑 ───────────────────────────────────────────────
+  // ─── gateway_token 轮换逻辑 ────────────────────────────────────────
   const now = new Date();
-  let authToken: string;
+  let gatewayToken = license.gateway_token;
 
-  const tokenStillValid =
-    license.auth_token && license.token_expires_at && new Date(license.token_expires_at) > now;
+  const tokenStillValid = license.token_expires_at && new Date(license.token_expires_at) > now;
 
   if (tokenStillValid) {
-    // 未过期：直接复用，同步写入 json（确保实例 config 始终最新）
-    authToken = license.auth_token!;
-    await syncTokenToConfig(license.data_dir, license.compose_project, authToken);
+    // 未过期：确保 openclaw.json 与 DB 一致
+    await syncTokenToConfig(license.data_dir, license.compose_project, gatewayToken);
   } else {
-    // 已过期或首次：生成新 token
-    authToken = randomBytes(32).toString("hex");
+    // 已过期或首次 verify：轮换 gateway_token
+    gatewayToken = randomBytes(32).toString("hex");
     const ttlDays = license.token_ttl_days ?? 30;
     const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
     // 先写文件，再更新 DB（写文件失败不影响 DB 记录）
-    await syncTokenToConfig(license.data_dir, license.compose_project, authToken);
+    await syncTokenToConfig(license.data_dir, license.compose_project, gatewayToken);
 
-    db.run("UPDATE licenses SET auth_token=?, token_expires_at=? WHERE id=?", [
-      authToken,
+    db.run("UPDATE licenses SET gateway_token=?, token_expires_at=? WHERE id=?", [
+      gatewayToken,
       expiresAt,
       license.id,
     ]);
@@ -161,10 +159,9 @@ verify.post("/", async (c) => {
     data: {
       nodeConfig: {
         gatewayUrl: license.gateway_url,
-        gatewayToken: license.gateway_token,
+        gatewayToken,
         agentId,
         deviceName,
-        authToken,
         licenseId: license.id,
         tenantUrl: process.env.TENANT_PUBLIC_URL ?? "",
       },

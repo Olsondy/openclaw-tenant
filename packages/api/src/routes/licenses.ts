@@ -70,7 +70,6 @@ licenses.post("/", async (c) => {
 
   const licenseKey = generateLicenseKey();
   const gatewayToken = randomBytes(32).toString("hex");
-  const authToken = randomBytes(32).toString("hex");
   const tokenExpiresAt = new Date(Date.now() + tokenTtlDays * 24 * 60 * 60 * 1000).toISOString();
   const initialGatewayUrl = `ws://${hostIp}:${portPair.gatewayPort}`;
   const initialWebuiUrl = `http://${hostIp}:${portPair.gatewayPort}`;
@@ -79,9 +78,9 @@ licenses.post("/", async (c) => {
     `INSERT INTO licenses
        (license_key, gateway_token, gateway_url, status,
          owner_tag, gateway_port, bridge_port, provision_status, webui_url,
-         expiry_date, auth_token, token_expires_at, token_ttl_days,
+         expiry_date, token_expires_at, token_ttl_days,
          runtime_provider, runtime_dir, data_dir)
-     VALUES (?, ?, ?, 'unbound', ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, 'unbound', ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
     [
       licenseKey,
       gatewayToken,
@@ -91,7 +90,6 @@ licenses.post("/", async (c) => {
       portPair.bridgePort,
       initialWebuiUrl,
       expiryDate,
-      authToken,
       tokenExpiresAt,
       tokenTtlDays,
       settings.runtime_provider,

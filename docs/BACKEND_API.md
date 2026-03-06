@@ -107,20 +107,24 @@
   "data": {
     "nodeConfig": {
       "gatewayUrl": "ws://... or wss://...",
-      "gatewayToken": "...",
+      "gatewayToken": "64-char-hex",
       "agentId": "16-char-hex",
       "deviceName": "...",
-      "authToken": "64-char-hex"
+      "licenseId": 1,
+      "tenantUrl": "https://..."
     },
     "userProfile": {
       "licenseStatus": "Valid",
       "expiryDate": "Permanent or YYYY-MM-DD"
+    },
+    "needsBootstrap": {
+      "feishu": true
     }
   }
 }
 ```
 
-- `authToken`: 可轮换的 Auth Token，每个 license 独立，写入对应实例 `openclaw.json` 的 `gateway.auth.token` 和 `gateway.remote.token`，过期后下次 verify 自动刷新。
+- `gatewayToken`: 用于 wss 连接的 token（`wss://gateway?token=xxx`），每个 license 独立。当 `token_expires_at` 过期后，下次 verify 自动轮换并同步写入 `openclaw.json` 的 `gateway.auth.token` 和 `gateway.remote.token`。
 
 - Errors:
   - `400 INVALID_JSON`
@@ -140,8 +144,8 @@
   - `gateway_port`, `bridge_port`, `webui_url`, `nginx_host`
   - `runtime_provider`, `runtime_dir`, `data_dir`
   - `provision_status`, `provision_error`, `provision_started_at`, `provision_completed_at`
-- License Auth Token 缓存字段（新增）：
-  - `auth_token`: 当前有效的可轮换 token
+- Gateway Token 轮换字段：
+  - `gateway_token`: 用于 wss 连接的 token，verify 时自动轮换
   - `token_expires_at`: token 过期时间（ISO 8601）
   - `token_ttl_days`: token 轮换周期（天），创建 license 时指定，默认 30
 - Settings stores global defaults for future licenses; each created license keeps its own effective snapshot.

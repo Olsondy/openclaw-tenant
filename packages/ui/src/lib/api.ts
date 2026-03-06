@@ -54,8 +54,7 @@ export interface License {
   provision_started_at: string | null;
   provision_completed_at: string | null;
   nginx_host: string | null;
-  // Token cache fields
-  auth_token: string | null;
+  // Token rotation fields
   token_expires_at: string | null;
   token_ttl_days: number | null;
 }

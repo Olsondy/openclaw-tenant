@@ -76,7 +76,7 @@ The field is per-step, allowing future wizard steps to be added independently.
 
 File: `packages/api/src/routes/bootstrap-config.ts`
 
-- **Auth**: `authToken` in request body (matches `licenses.auth_token` — no JWT required, exec calls this directly)
+- **Auth**: `licenseKey` + `hwid` in request body (matches `licenses` table — no JWT required, exec calls this directly)
 - **Whitelist**: only `channels.feishu.appId` and `channels.feishu.appSecret` are written
 - **Effect**: patches `openclaw.json` in the container's config dir, sets `wizard_feishu_done = 1`
 - **Idempotent**: can be called again from exec Settings to reconfigure

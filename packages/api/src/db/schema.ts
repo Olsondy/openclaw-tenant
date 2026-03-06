@@ -27,7 +27,6 @@ export const SCHEMA_SQL = `
     runtime_provider     TEXT,
     runtime_dir          TEXT,
     data_dir             TEXT,
-    auth_token           TEXT,
     token_expires_at     TEXT,
     token_ttl_days       INTEGER DEFAULT 30,
     exec_public_key      TEXT,

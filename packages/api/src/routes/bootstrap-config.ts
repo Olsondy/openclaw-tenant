@@ -10,23 +10,34 @@ router.post("/:id/bootstrap-config", async (c) => {
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ success: false, error: "INVALID_ID" }, 400);
 
-  let body: { authToken?: string; feishu?: { appId?: string; appSecret?: string } };
+  let body: { licenseKey?: string; hwid?: string; feishu?: { appId?: string; appSecret?: string } };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ success: false, error: "INVALID_JSON" }, 400);
   }
 
+  if (!body.licenseKey || !body.hwid) {
+    return c.json({ success: false, error: "MISSING_CREDENTIALS" }, 400);
+  }
+
   const db = getDb();
   const license = db
     .query<
-      { auth_token: string | null; compose_project: string | null; data_dir: string | null },
+      {
+        license_key: string;
+        hwid: string | null;
+        compose_project: string | null;
+        data_dir: string | null;
+      },
       number
-    >("SELECT auth_token, compose_project, data_dir FROM licenses WHERE id=? AND status='active'")
+    >(
+      "SELECT license_key, hwid, compose_project, data_dir FROM licenses WHERE id=? AND status='active'",
+    )
     .get(id);
 
   if (!license) return c.json({ success: false, error: "NOT_FOUND" }, 404);
-  if (!body.authToken || body.authToken !== license.auth_token) {
+  if (body.licenseKey !== license.license_key || body.hwid !== license.hwid) {
     return c.json({ success: false, error: "UNAUTHORIZED" }, 403);
   }
   if (!license.compose_project || !license.data_dir) {
