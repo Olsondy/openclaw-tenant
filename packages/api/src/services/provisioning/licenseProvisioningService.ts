@@ -1,11 +1,12 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { getDb } from "../../db/client";
+import { type RuntimeProvider, resolveProvisionScriptPath } from "../settingsService";
 import { buildConfigDir, buildWorkspaceDir } from "./nameBuilder";
 import { writeNginxConfig } from "./nginxService";
 import { writePairingIfReady } from "./pairingWriter";
+import { patchModelApiKey } from "./patchModelApiKey";
 import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
-import { resolveProvisionScriptPath, type RuntimeProvider } from "../settingsService";
 
 const activeJobs = new Map<number, Promise<void>>();
 
@@ -84,6 +85,10 @@ async function runProvisioning(licenseId: number): Promise<void> {
       gatewayToken: license.gateway_token,
       provisionScript,
     });
+
+    // provision 完成后注入模型 apiKey 到 openclaw.json
+    const jwtSecret = process.env.JWT_SECRET ?? "";
+    await patchModelApiKey(configDir, jwtSecret);
 
     const containerId = await getContainerId(license.compose_project, runtimeProvider);
     const containerName = await getContainerName(containerId, runtimeProvider);
