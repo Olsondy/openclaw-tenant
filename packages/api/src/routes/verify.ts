@@ -28,6 +28,7 @@ interface LicenseRow {
   exec_public_key: string | null;
   compose_project: string | null;
   data_dir: string | null;
+  wizard_feishu_done: number;
 }
 
 const verify = new Hono();
@@ -119,10 +120,7 @@ verify.post("/", async (c) => {
 
   // ─── 更新 exec_public_key（如果本次携带了新的，或首次上报）──────────────
   if (publicKey && publicKey !== license.exec_public_key) {
-    db.run("UPDATE licenses SET exec_public_key=? WHERE id=?", [
-      publicKey,
-      license.id,
-    ]);
+    db.run("UPDATE licenses SET exec_public_key=? WHERE id=?", [publicKey, license.id]);
   }
   // ─── Token 缓存逻辑 ───────────────────────────────────────────────
   const now = new Date();
@@ -167,10 +165,15 @@ verify.post("/", async (c) => {
         agentId,
         deviceName,
         authToken,
+        licenseId: license.id,
+        tenantUrl: process.env.TENANT_PUBLIC_URL ?? "",
       },
       userProfile: {
         licenseStatus: "Valid",
         expiryDate: license.expiry_date ?? "Permanent",
+      },
+      needsBootstrap: {
+        feishu: license.wizard_feishu_done === 0,
       },
     },
   });
