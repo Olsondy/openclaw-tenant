@@ -109,4 +109,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  /** Batch health check: returns { [licenseId]: boolean } */
+  getHealth: () => request<{ success: boolean; data: Record<number, boolean> }>("/licenses/health"),
 };

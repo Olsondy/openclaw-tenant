@@ -1,159 +1,163 @@
 <script lang="ts">
-import {
-  api,
-  clearToken,
-  type License,
-  type RuntimeProvider,
-  type Settings,
-} from "./api";
+  import { api, clearToken, type License, type RuntimeProvider, type Settings } from './api'
 
-interface Props {
-  onLogout: () => void;
-}
-let { onLogout }: Props = $props();
-
-let licenses = $state<License[]>([]);
-let loading = $state(true);
-let generating = $state(false);
-let settingsLoading = $state(true);
-let savingSettings = $state(false);
-let error = $state("");
-let settings = $state<Settings | null>(null);
-
-// 弹窗状态
-let showModal = $state(false);
-let showSettingsModal = $state(false);
-// 表单字段
-let formOwnerTag = $state("");
-let formExpiryDate = $state(""); // 留空 = 永久
-let formTokenTtlDays = $state(30);
-let formHostIp = $state(""); // 留空 = 服务器默认
-let formBaseDomain = $state(""); // 留空 = 使用全局 settings.base_domain
-
-// Settings 表单字段
-let settingsRuntimeProvider = $state<RuntimeProvider>("docker");
-let settingsRuntimeDir = $state("");
-let settingsDataDir = $state("");
-let settingsHostIp = $state("");
-let settingsBaseDomain = $state("");
-let settingsGatewayPortStart = $state(18789);
-let settingsGatewayPortEnd = $state(18999);
-let settingsBridgePortStart = $state(28789);
-let settingsBridgePortEnd = $state(28999);
-
-const STATUS = {
-  unbound: { label: "未绑定", cls: "bg-gray-100 text-gray-600" },
-  active: { label: "已激活", cls: "bg-green-100 text-green-700" },
-  revoked: { label: "已撤销", cls: "bg-red-100 text-red-600" },
-} as const;
-
-function applySettingsToForm(row: Settings) {
-  settingsRuntimeProvider = row.runtime_provider;
-  settingsRuntimeDir = row.runtime_dir;
-  settingsDataDir = row.data_dir;
-  settingsHostIp = row.host_ip;
-  settingsBaseDomain = row.base_domain ?? "";
-  settingsGatewayPortStart = row.gateway_port_start;
-  settingsGatewayPortEnd = row.gateway_port_end;
-  settingsBridgePortStart = row.bridge_port_start;
-  settingsBridgePortEnd = row.bridge_port_end;
-}
-
-async function load() {
-  try {
-    const [licenseRes, settingsRes] = await Promise.all([
-      api.getLicenses(),
-      api.getSettings(),
-    ]);
-    licenses = licenseRes.data;
-    settings = settingsRes.data;
-    applySettingsToForm(settingsRes.data);
-  } catch (e) {
-    error = e instanceof Error ? e.message : "加载失败";
-  } finally {
-    loading = false;
-    settingsLoading = false;
+  interface Props {
+    onLogout: () => void
   }
-}
+  let { onLogout }: Props = $props()
 
-function openModal() {
-  formOwnerTag = "";
-  formExpiryDate = "";
-  formTokenTtlDays = 30;
-  formHostIp = settings?.host_ip ?? "";
-  formBaseDomain = "";
-  showModal = true;
-}
+  let licenses = $state<License[]>([])
+  let loading = $state(true)
+  let generating = $state(false)
+  let settingsLoading = $state(true)
+  let savingSettings = $state(false)
+  let error = $state('')
+  let settings = $state<Settings | null>(null)
+  let healthStatus = $state<Record<number, boolean>>({})
+  let healthTimer: ReturnType<typeof setInterval> | null = null
 
-function openSettings() {
-  if (settings) applySettingsToForm(settings);
-  showSettingsModal = true;
-}
+  // 弹窗状态
+  let showModal = $state(false)
+  let showSettingsModal = $state(false)
+  // 表单字段
+  let formOwnerTag = $state('')
+  let formExpiryDate = $state('') // 留空 = 永久
+  let formTokenTtlDays = $state(7)
+  let formHostIp = $state('') // 留空 = 服务器默认
+  let formBaseDomain = $state('') // 留空 = 使用全局 settings.base_domain
 
-async function saveSettings() {
-  savingSettings = true;
-  try {
-    const res = await api.updateSettings({
-      runtime_provider: settingsRuntimeProvider,
-      runtime_dir: settingsRuntimeDir.trim(),
-      data_dir: settingsDataDir.trim(),
-      host_ip: settingsHostIp.trim(),
-      base_domain: settingsBaseDomain.trim() || null,
-      gateway_port_start: Number(settingsGatewayPortStart),
-      gateway_port_end: Number(settingsGatewayPortEnd),
-      bridge_port_start: Number(settingsBridgePortStart),
-      bridge_port_end: Number(settingsBridgePortEnd),
-    });
-    settings = res.data;
-    applySettingsToForm(res.data);
-    showSettingsModal = false;
-  } catch (e) {
-    error = e instanceof Error ? e.message : "保存设置失败";
-  } finally {
-    savingSettings = false;
+  // Settings 表单字段
+  let settingsRuntimeProvider = $state<RuntimeProvider>('docker')
+  let settingsRuntimeDir = $state('')
+  let settingsDataDir = $state('')
+  let settingsHostIp = $state('')
+  let settingsBaseDomain = $state('')
+  let settingsGatewayPortStart = $state(18789)
+  let settingsGatewayPortEnd = $state(18999)
+  let settingsBridgePortStart = $state(28789)
+  let settingsBridgePortEnd = $state(28999)
+
+  const STATUS = {
+    unbound: { label: '待激活', cls: 'bg-gray-100 text-gray-600' },
+    active: { label: '已激活', cls: 'bg-green-100 text-green-700' },
+    revoked: { label: '已注销', cls: 'bg-red-100 text-red-600' },
+  } as const
+
+  function applySettingsToForm(row: Settings) {
+    settingsRuntimeProvider = row.runtime_provider
+    settingsRuntimeDir = row.runtime_dir
+    settingsDataDir = row.data_dir
+    settingsHostIp = row.host_ip
+    settingsBaseDomain = row.base_domain ?? ''
+    settingsGatewayPortStart = row.gateway_port_start
+    settingsGatewayPortEnd = row.gateway_port_end
+    settingsBridgePortStart = row.bridge_port_start
+    settingsBridgePortEnd = row.bridge_port_end
   }
-}
 
-async function generate() {
-  generating = true;
-  try {
-    const opts: Parameters<typeof api.generateLicense>[0] = {};
-    if (formOwnerTag) opts.ownerTag = formOwnerTag;
-    if (formExpiryDate) opts.expiryDate = formExpiryDate;
-    if (formTokenTtlDays !== 30) opts.tokenTtlDays = formTokenTtlDays;
-    if (formHostIp) opts.hostIp = formHostIp;
-    if (formBaseDomain) opts.baseDomain = formBaseDomain;
-
-    const res = await api.generateLicense(opts);
-    licenses = [res.data, ...licenses];
-    showModal = false;
-  } catch (e) {
-    error = e instanceof Error ? e.message : "生成失败";
-  } finally {
-    generating = false;
+  async function load() {
+    try {
+      const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()])
+      licenses = licenseRes.data
+      settings = settingsRes.data
+      applySettingsToForm(settingsRes.data)
+    } catch (e) {
+      error = e instanceof Error ? e.message : '加载失败'
+    } finally {
+      loading = false
+      settingsLoading = false
+    }
   }
-}
 
-async function revoke(license: License) {
-  if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return;
-  try {
-    await api.revokeLicense(license.id);
-    licenses = licenses.map((l) =>
-      l.id === license.id ? { ...l, status: "revoked" as const } : l,
-    );
-  } catch (e) {
-    error = e instanceof Error ? e.message : "撤销失败";
+  function openModal() {
+    formOwnerTag = ''
+    formExpiryDate = ''
+    formTokenTtlDays = 7
+    formHostIp = settings?.host_ip ?? ''
+    formBaseDomain = ''
+    showModal = true
   }
-}
 
-function logout() {
-  clearToken();
-  onLogout();
-}
+  function openSettings() {
+    if (settings) applySettingsToForm(settings)
+    showSettingsModal = true
+  }
 
-$effect(() => {
-  load();
-});
+  async function saveSettings() {
+    savingSettings = true
+    try {
+      const res = await api.updateSettings({
+        runtime_provider: settingsRuntimeProvider,
+        runtime_dir: settingsRuntimeDir.trim(),
+        data_dir: settingsDataDir.trim(),
+        host_ip: settingsHostIp.trim(),
+        base_domain: settingsBaseDomain.trim() || null,
+        gateway_port_start: Number(settingsGatewayPortStart),
+        gateway_port_end: Number(settingsGatewayPortEnd),
+        bridge_port_start: Number(settingsBridgePortStart),
+        bridge_port_end: Number(settingsBridgePortEnd),
+      })
+      settings = res.data
+      applySettingsToForm(res.data)
+      showSettingsModal = false
+    } catch (e) {
+      error = e instanceof Error ? e.message : '保存设置失败'
+    } finally {
+      savingSettings = false
+    }
+  }
+
+  async function generate() {
+    generating = true
+    try {
+      const opts: Parameters<typeof api.generateLicense>[0] = {}
+      if (formOwnerTag) opts.ownerTag = formOwnerTag
+      if (formExpiryDate) opts.expiryDate = formExpiryDate
+      if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays
+      if (formHostIp) opts.hostIp = formHostIp
+      if (formBaseDomain) opts.baseDomain = formBaseDomain
+
+      const res = await api.generateLicense(opts)
+      licenses = [res.data, ...licenses]
+      showModal = false
+    } catch (e) {
+      error = e instanceof Error ? e.message : '生成失败'
+    } finally {
+      generating = false
+    }
+  }
+
+  async function revoke(license: License) {
+    if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return
+    try {
+      await api.revokeLicense(license.id)
+      licenses = licenses.map((l) => (l.id === license.id ? { ...l, status: 'revoked' as const } : l))
+    } catch (e) {
+      error = e instanceof Error ? e.message : '撤销失败'
+    }
+  }
+
+  function logout() {
+    clearToken()
+    onLogout()
+  }
+
+  async function pollHealth() {
+    try {
+      const res = await api.getHealth()
+      healthStatus = res.data
+    } catch {
+      // ignore health poll errors
+    }
+  }
+
+  $effect(() => {
+    load().then(() => pollHealth())
+    healthTimer = setInterval(pollHealth, 30_000)
+    return () => {
+      if (healthTimer) clearInterval(healthTimer)
+    }
+  })
 </script>
 
 <div class="min-h-screen bg-slate-50 font-sans selection:bg-blue-200">
@@ -167,14 +171,40 @@ $effect(() => {
   <nav class="relative z-10 bg-white/70 backdrop-blur-md border-b border-slate-200/60 sticky top-0">
     <div class="max-w-[1400px] mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2.5"
-              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-            />
+        <div class="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-xl shadow-red-500/20 border border-red-500/30 relative overflow-hidden group">
+          <!-- 背景微光环绕 -->
+          <div class="absolute inset-0 bg-gradient-to-tr from-red-600/20 to-transparent"></div>
+
+          <svg class="w-10 h-10 relative z-10" viewBox="0 0 24 24" fill="none">
+            <!-- 触角：向外侧斜上方的粗短天线，完全复刻原图 -->
+            <path d="M10 7.5 L7.5 4.5" stroke="#e13b3b" stroke-width="2.2" stroke-linecap="round" />
+            <path d="M14 7.5 L16.5 4.5" stroke="#e13b3b" stroke-width="2.2" stroke-linecap="round" />
+
+            <!-- 身体：大圆盘 -->
+            <circle cx="12" cy="13" r="7.8" fill="#e13b3b" />
+
+            <!-- 眼睛：大黑底 + 青色亮点，完全复刻原图 -->
+            <circle cx="9.2" cy="10.8" r="1.6" fill="#0f172a" />
+            <circle cx="9.2" cy="10.8" r="0.7" fill="#00f3ff" />
+
+            <circle cx="14.8" cy="10.8" r="1.6" fill="#0f172a" />
+            <circle cx="14.8" cy="10.8" r="0.7" fill="#00f3ff" />
+
+            <!-- 腿：底部短短的两条腿 -->
+            <rect x="9.5" y="19" width="1.8" height="3" rx="0.5" fill="#e13b3b" />
+            <rect x="12.7" y="19" width="1.8" height="3" rx="0.5" fill="#e13b3b" />
+
+            <!-- 手/螯：分置于身体两侧中间偏上一点 -->
+            <circle cx="3.8" cy="13" r="2.2" fill="#ef4444" />
+            <circle cx="20.2" cy="13" r="2.2" fill="#ef4444" />
+
+            <!-- 极简的微型容器块（被小手托着） -->
+            <g transform="translate(1.5, 8.5)">
+              <rect x="0" y="0" width="3" height="3" rx="0.5" fill="#60a5fa" opacity="0.9" />
+            </g>
+            <g transform="translate(19.5, 8.5)">
+              <rect x="0" y="0" width="3" height="3" rx="0.5" fill="#60a5fa" opacity="0.9" />
+            </g>
           </svg>
         </div>
         <span class="text-slate-800 font-semibold tracking-tight">OpenClaw Hub</span>
@@ -220,12 +250,7 @@ $effect(() => {
             class="bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-xl transition-all border border-slate-200/80 shadow-sm text-sm flex items-center gap-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M11.983 13.941a2 2 0 100-3.882 2 2 0 000 3.882z"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.983 13.941a2 2 0 100-3.882 2 2 0 000 3.882z" />
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -233,7 +258,7 @@ $effect(() => {
                 d="M3.055 11a8.03 8.03 0 01.769-2.83l2.055.333a6.061 6.061 0 011.304-1.303l-.333-2.055A8.03 8.03 0 0110 4.055l.849 1.903a6.052 6.052 0 012.302 0L14 4.055a8.03 8.03 0 012.83.769l-.333 2.055a6.06 6.06 0 011.303 1.304l2.055-.333A8.03 8.03 0 0120.945 11l-1.903.849a6.052 6.052 0 010 2.302l1.903.849a8.03 8.03 0 01-.769 2.83l-2.055-.333a6.061 6.061 0 01-1.304 1.303l.333 2.055A8.03 8.03 0 0114 20.945l-.849-1.903a6.052 6.052 0 01-2.302 0L10 20.945a8.03 8.03 0 01-2.83-.769l.333-2.055a6.06 6.06 0 01-1.303-1.304l-2.055.333A8.03 8.03 0 013.055 15l1.903-.849a6.052 6.052 0 010-2.302L3.055 11z"
               />
             </svg>
-            {settingsLoading ? "设置加载中..." : "全局设置"}
+            {settingsLoading ? '设置加载中...' : '全局设置'}
           </button>
           <button
             onclick={openModal}
@@ -323,22 +348,9 @@ $effect(() => {
                           <span class="text-slate-400">凭证到期:</span>
                           <span class="text-slate-700 font-medium">{license.expiry_date ?? '永久生效'}</span>
                         </div>
-                        <div class="flex justify-between w-40">
-                          <span class="text-slate-400">Token限期:</span>
-                          <span class="text-slate-700 font-medium whitespace-nowrap">
-                            {#if license.token_expires_at}
-                              {license.token_expires_at.slice(0, 10)}
-                              {#if new Date(license.token_expires_at) < new Date()}
-                                <span class="text-orange-500 ml-1 font-bold animate-pulse" title="在下次Verify时自动轮换">!</span>
-                              {/if}
-                            {:else}
-                              —
-                            {/if}
-                          </span>
-                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </div></td
+                  >
 
                   <!-- 第三列：绑定的硬件信息 -->
                   <td class="px-6 py-4 align-top">
@@ -364,59 +376,40 @@ $effect(() => {
                     </div>
                   </td>
 
-                  <!-- 第四列：Provisioning 以及 Node URL -->
+                  <!-- 第四列：健康状态与节点信息极简版 -->
                   <td class="px-6 py-4 align-top">
-                    <div class="flex flex-col gap-2 pt-1.5">
-                      <div class="flex items-center gap-2">
-                        {#if license.provision_status === 'ready'}
-                          <span class="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"
-                              ><path
-                                fill-rule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clip-rule="evenodd"
-                              /></svg
-                            >
-                            节点就绪
-                          </span>
-                        {:else if license.provision_status === 'running'}
-                          <span class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                            <div class="w-3 h-3 border-2 border-blue-600 border-r-transparent rounded-full animate-spin"></div>
-                            资源分配中...
-                          </span>
-                        {:else if license.provision_status === 'failed'}
-                          <span class="flex items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100" title={license.provision_error ?? ''}>
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                              ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg
-                            >
-                            分配失败
-                          </span>
-                        {:else}
-                          <span class="flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                              ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg
-                            >
-                            等待调度
-                          </span>
-                        {/if}
-                      </div>
-
-                      {#if license.gateway_url}
-                        <div class="mt-1">
-                          <a
-                            href={license.gateway_url}
-                            target="_blank"
-                            class="text-blue-600 text-[13px] hover:text-blue-800 hover:underline inline-flex items-center gap-1 truncate max-w-[200px] font-medium transition-colors"
+                    <div class="flex items-center gap-2 pt-1.5 font-medium">
+                      {#if license.provision_status === 'ready'}
+                        <span
+                          class="inline-flex items-center gap-1.5 text-[13px] {healthStatus[license.id]
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-slate-600 bg-slate-50 border-slate-200'} px-2.5 py-1 rounded-md border shadow-sm"
+                        >
+                          <span class="w-2 h-2 rounded-full {healthStatus[license.id] ? 'bg-emerald-500 shadow-sm shadow-emerald-500/40' : 'bg-slate-400'}"></span>
+                          Gateway <span class="font-mono text-slate-500 ml-0.5">:{license.gateway_port}</span>
+                        </span>
+                      {:else if license.provision_status === 'running'}
+                        <span class="inline-flex items-center gap-1.5 text-[13px] text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md shadow-sm">
+                          <div class="w-3 h-3 border-2 border-blue-600 border-r-transparent rounded-full animate-spin"></div>
+                          分配中...
+                        </span>
+                      {:else if license.provision_status === 'failed'}
+                        <span
+                          class="inline-flex items-center gap-1.5 text-[13px] text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md shadow-sm"
+                          title={license.provision_error ?? ''}
+                        >
+                          <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg
                           >
-                            {license.gateway_url.replace('ws://', '').replace('wss://', '')}
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                              ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg
-                            >
-                          </a>
-                          {#if license.container_name}
-                            <div class="text-[11px] text-slate-400 font-mono mt-0.5">{license.container_name}</div>
-                          {/if}
-                        </div>
+                          分配失败
+                        </span>
+                      {:else}
+                        <span class="inline-flex items-center gap-1.5 text-[13px] text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md shadow-sm">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg
+                          >
+                          等待调度
+                        </span>
                       {/if}
                     </div>
                   </td>
@@ -507,7 +500,7 @@ $effect(() => {
 
         <!-- Token 有效期 -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5"> Auth Token 轮换周期 </label>
+          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5"> Gateway Token 轮换周期 </label>
           <div class="flex items-center gap-3">
             <div class="relative w-28">
               <input
@@ -540,7 +533,7 @@ $effect(() => {
           <input
             type="text"
             bind:value={formHostIp}
-            placeholder={settings?.host_ip ?? "e.g. 192.168.1.100"}
+            placeholder={settings?.host_ip ?? 'e.g. 192.168.1.100'}
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono placeholder:font-sans placeholder:text-slate-400 text-slate-700"
           />
         </div>
@@ -553,7 +546,7 @@ $effect(() => {
           <input
             type="text"
             bind:value={formBaseDomain}
-            placeholder={settings?.base_domain ?? "e.g. openclaw.example.com"}
+            placeholder={settings?.base_domain ?? 'e.g. openclaw.example.com'}
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400 text-slate-700"
           />
         </div>
@@ -594,9 +587,7 @@ $effect(() => {
       <div class="relative px-6 py-5 border-b border-slate-100/80 flex items-center justify-between z-10">
         <div>
           <h3 class="text-slate-800 font-bold text-lg tracking-tight">全局运行设置</h3>
-          <p class="text-[13px] text-slate-500 mt-1">
-            `base_domain` 是默认域名；create license 若填写域名，会覆盖并冻结到该 license。
-          </p>
+          <p class="text-[13px] text-slate-500 mt-1">以下为新建 License 时的默认值。创建后各 License 保留独立快照，不受后续全局修改影响。</p>
         </div>
         <button onclick={() => (showSettingsModal = false)} class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -608,7 +599,8 @@ $effect(() => {
       <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Runtime Provider</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">容器引擎</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">用于拉起 OpenClaw 实例的容器运行时</p>
             <select
               bind:value={settingsRuntimeProvider}
               class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
@@ -618,7 +610,8 @@ $effect(() => {
             </select>
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Host IP</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">宿主机 IP</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">服务器公网 / 内网 IP，用于生成 Gateway 连接地址</p>
             <input
               type="text"
               bind:value={settingsHostIp}
@@ -626,7 +619,8 @@ $effect(() => {
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Runtime Dir</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">运行时目录</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">OpenClaw docker-compose.yml 所在目录</p>
             <input
               type="text"
               bind:value={settingsRuntimeDir}
@@ -634,7 +628,8 @@ $effect(() => {
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Data Dir</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">数据目录</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">各实例配置和数据文件的根目录（每个 License 一个子文件夹）</p>
             <input
               type="text"
               bind:value={settingsDataDir}
@@ -642,7 +637,8 @@ $effect(() => {
             />
           </div>
           <div class="md:col-span-2">
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Base Domain (Global Default)</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">全局默认域名</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">配置后自动生成 wss:// 地址和 Nginx 反代；留空则走 IP:Port 模式</p>
             <input
               type="text"
               bind:value={settingsBaseDomain}
@@ -651,7 +647,8 @@ $effect(() => {
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Gateway Port Range</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">Gateway 端口池</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">每个 License 自动从此范围分配一个 Gateway 端口</p>
             <div class="flex items-center gap-2">
               <input
                 type="number"
@@ -671,7 +668,8 @@ $effect(() => {
             </div>
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Bridge Port Range</label>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">Bridge 端口池</label>
+            <p class="text-[11px] text-slate-400 mb-1.5">每个 License 自动从此范围分配一个 Bridge 端口</p>
             <div class="flex items-center gap-2">
               <input
                 type="number"
