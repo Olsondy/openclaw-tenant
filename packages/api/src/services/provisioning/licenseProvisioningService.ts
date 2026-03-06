@@ -3,6 +3,7 @@ import { join } from "path";
 import { getDb } from "../../db/client";
 import { buildConfigDir, buildNginxHost, buildWorkspaceDir } from "./nameBuilder";
 import { writeNginxConfig } from "./nginxService";
+import { writePairingIfReady } from "./pairingWriter";
 import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
 
 const activeJobs = new Map<number, Promise<void>>();
@@ -129,6 +130,12 @@ async function runProvisioning(licenseId: number): Promise<void> {
     console.log(
       `[provision] license=${licenseId} ready container=${containerName} url=${gatewayUrl}`,
     );
+
+    // 双时机触发：provision 完成时尝试写入 Gateway pairing 文件
+    // （若 exec 尚未 verify 上报 publicKey，函数内部检查后 no-op；等 verify 时再补写）
+    writePairingIfReady(licenseId).catch((err) => {
+      console.warn(`[provision] writePairingIfReady license=${licenseId} failed: ${err.message}`);
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     db.run(

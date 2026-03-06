@@ -14,16 +14,6 @@ Runtime environment contract for API/UI startup and provisioning operations.
 | `DB_PATH` | `openclaw.db` | No | SQLite file path |
 | `UI_DIST_PATH` | `../ui/dist` | No | Static UI output directory |
 
-## Verify/Approve Integration
-
-| Variable | Default | Required | Purpose |
-|---|---|---|---|
-| `DOCKER_APPROVE_CMD` | - | No | Command executed after successful verify |
-
-Notes:
-- If unset, no approve command is executed.
-- Supports `{{container}}` placeholder for per-license container targeting.
-
 ## Provisioning Variables
 
 | Variable | Default | Required | Purpose |

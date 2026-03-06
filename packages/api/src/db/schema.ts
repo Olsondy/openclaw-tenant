@@ -26,7 +26,8 @@ export const SCHEMA_SQL = `
     nginx_host           TEXT,
     auth_token           TEXT,
     token_expires_at     TEXT,
-    token_ttl_days       INTEGER DEFAULT 30
+    token_ttl_days       INTEGER DEFAULT 30,
+    exec_public_key      TEXT
   );
 
   CREATE TABLE IF NOT EXISTS admin_users (

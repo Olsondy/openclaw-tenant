@@ -17,8 +17,9 @@ function post(body: object) {
 function seedLicense(status = "unbound", hwid: string | null = null) {
   const db = getDb();
   db.run(
-    `INSERT INTO licenses (license_key, gateway_token, gateway_url, status, hwid, agent_id)
-     VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', ?, ?, ?)`,
+    `INSERT INTO licenses
+       (license_key, gateway_token, gateway_url, status, hwid, agent_id, provision_status)
+     VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', ?, ?, ?, 'ready')`,
     [status, hwid, hwid ? "abcdef1234567890" : null],
   );
 }
@@ -102,8 +103,9 @@ describe("POST /verify", () => {
   test("rejects expired license", async () => {
     const db = getDb();
     db.run(
-      `INSERT INTO licenses (license_key, gateway_token, gateway_url, status, expiry_date)
-       VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', 'active', '2020-01-01')`,
+      `INSERT INTO licenses
+         (license_key, gateway_token, gateway_url, status, expiry_date, provision_status)
+       VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', 'active', '2020-01-01', 'ready')`,
     );
     const res = await post({
       hwid: "hw1",

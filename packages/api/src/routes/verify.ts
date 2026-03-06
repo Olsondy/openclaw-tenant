@@ -2,11 +2,14 @@ import { randomBytes } from "crypto";
 import { Hono } from "hono";
 import { getDb } from "../db/client";
 import { generateAgentId, isExpired } from "../services/licenseService";
+import { buildConfigDir } from "../services/provisioning/nameBuilder";
+import { writePairingIfReady } from "../services/provisioning/pairingWriter";
 
 interface VerifyBody {
   hwid: string;
   licenseKey: string;
   deviceName: string;
+  publicKey?: string; // exec 上报的 ed25519 公钥（base64url），可选，向后兼容
 }
 
 interface LicenseRow {
@@ -22,20 +25,23 @@ interface LicenseRow {
   auth_token: string | null;
   token_expires_at: string | null;
   token_ttl_days: number | null;
+  exec_public_key: string | null;
+  compose_project: string | null;
 }
 
 const verify = new Hono();
 
 /**
  * 将新的 auth token 同步写入对应实例的 openclaw.json。
- * 路径：{OPENCLAW_DATA_DIR}/{licenseId}/openclaw.json
+ * 路径：{OPENCLAW_DATA_DIR}/{compose_project}/.openclaw/openclaw.json
  * 若文件不存在（实例尚未完成 provision），则静默跳过。
  */
-async function syncTokenToConfig(licenseId: number, token: string): Promise<void> {
+async function syncTokenToConfig(composeProject: string | null, token: string): Promise<void> {
   const dataDir = process.env.OPENCLAW_DATA_DIR;
   if (!dataDir) return;
+  if (!composeProject) return;
 
-  const configPath = `${dataDir}/${licenseId}/openclaw.json`;
+  const configPath = `${buildConfigDir(dataDir, composeProject)}/openclaw.json`;
   const file = Bun.file(configPath);
   const exists = await file.exists();
   if (!exists) return;
@@ -60,7 +66,7 @@ verify.post("/", async (c) => {
   } catch {
     return c.json({ success: false, error: "INVALID_JSON" }, 400);
   }
-  const { hwid, licenseKey, deviceName } = body;
+  const { hwid, licenseKey, deviceName, publicKey } = body;
 
   if (!hwid || !licenseKey || !deviceName) {
     return c.json({ success: false, error: "MISSING_FIELDS" }, 400);
@@ -107,6 +113,13 @@ verify.post("/", async (c) => {
     agentId = license.agent_id!;
   }
 
+  // ─── 更新 exec_public_key（如果本次携带了新的，或首次上报）──────────────
+  if (publicKey && publicKey !== license.exec_public_key) {
+    db.run("UPDATE licenses SET exec_public_key=? WHERE id=?", [
+      publicKey,
+      license.id,
+    ]);
+  }
   // ─── Token 缓存逻辑 ───────────────────────────────────────────────
   const now = new Date();
   let authToken: string;
@@ -117,7 +130,7 @@ verify.post("/", async (c) => {
   if (tokenStillValid) {
     // 未过期：直接复用，同步写入 json（确保实例 config 始终最新）
     authToken = license.auth_token!;
-    await syncTokenToConfig(license.id, authToken);
+    await syncTokenToConfig(license.compose_project, authToken);
   } else {
     // 已过期或首次：生成新 token
     authToken = randomBytes(32).toString("hex");
@@ -125,7 +138,7 @@ verify.post("/", async (c) => {
     const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
     // 先写文件，再更新 DB（写文件失败不影响 DB 记录）
-    await syncTokenToConfig(license.id, authToken);
+    await syncTokenToConfig(license.compose_project, authToken);
 
     db.run("UPDATE licenses SET auth_token=?, token_expires_at=? WHERE id=?", [
       authToken,
@@ -134,6 +147,12 @@ verify.post("/", async (c) => {
     ]);
   }
   // ─────────────────────────────────────────────────────────────────
+
+  // 双时机触发：verify 成功时补写 Gateway pairing 文件
+  // （另一时机在 provision 完成时触发，互为补充，哪个先完成哪个生效）
+  writePairingIfReady(license.id).catch(() => {
+    // best-effort，不影响 verify 结果
+  });
 
   return c.json({
     success: true,

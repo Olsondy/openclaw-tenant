@@ -79,7 +79,6 @@
   - Validates license existence and status.
   - Blocks when provisioning not ready.
   - First successful verify binds HWID and activates license.
-  - Triggers optional docker approve command asynchronously.
 
 - Success `200`:
 

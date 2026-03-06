@@ -1,0 +1,65 @@
+# openclaw-tenant systemd 服务单元文件
+# 使用方法：
+#   1. 将此文件复制到 /etc/systemd/system/openclaw-tenant.service
+#   2. 按实际情况修改 WorkingDirectory、ExecStart 中的路径
+#   3. 修改 User/Group 为实际运行用户（不要用 root）
+#   4. 确认 .env 文件权限：chmod 600 /srv/openclaw-tenant/.env
+#   5. 启用并启动：
+#        systemctl daemon-reload
+#        systemctl enable openclaw-tenant
+#        systemctl start openclaw-tenant
+#   6. 查看日志：journalctl -u openclaw-tenant -f
+#
+# 安全说明：
+#   - 以非 root 用户运行
+#   - EnvironmentFile 不要提交到 Git，权限设为 600
+#   - 限制了权限提升、内核模块写入等高危操作
+#   - 如使用 rootless podman，确保该用户的 XDG_RUNTIME_DIR 正确
+
+[Unit]
+Description=OpenClaw Tenant Management API
+Documentation=https://github.com/your-org/easy-openclaw
+After=network.target
+# 如果依赖 podman socket，取消下一行注释
+# After=podman.socket
+
+[Service]
+Type=simple
+
+# ⚠️ 修改为实际运行用户（不要用 root）
+User=YOUR_USER
+Group=YOUR_GROUP
+
+# ⚠️ 修改为实际项目路径（packages/api 目录）
+WorkingDirectory=/srv/openclaw-tenant/packages/api
+
+# 从 .env 文件加载环境变量（权限必须为 600，不得提交到 Git）
+# ⚠️ 修改为实际 .env 路径
+EnvironmentFile=/srv/openclaw-tenant/.env
+
+# rootless podman 需要此变量，将 1000 替换为实际用户 UID
+# Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+# ⚠️ 修改为 bun 实际路径（通过 which bun 查看）
+ExecStart=/home/YOUR_USER/.bun/bin/bun src/index.ts
+
+# 进程退出后 5 秒自动重启
+Restart=on-failure
+RestartSec=5s
+
+# 标准输出/错误输出均交给 journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-tenant
+
+# 进程安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# 允许写入的目录（DB 文件、数据目录），按实际路径修改
+ReadWritePaths=/srv/openclaw-tenant /home/podman_data/openclaw-data
+PrivateTmp=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
