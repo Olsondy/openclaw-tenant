@@ -43,14 +43,70 @@ File: `packages/api/src/services/provisioning/licenseProvisioningService.ts`
 1. Mark row `running` and set `provision_started_at`.
 2. Read runtime config from license row (`runtime_provider/runtime_dir/data_dir/nginx_host`).
 3. Resolve setup script by provider (`docker` or `podman`) and run `runProvisionScript`.
-4. Read container id/name via corresponding runtime command.
-5. Try reading generated `openclaw.json` token override from config dir.
-6. Optional domain mode:
+   - Script pre-seeds `openclaw.json` with baseline config (gateway, tools.exec, models, agents, messages, commands, session).
+   - Script installs feishu plugin into the config dir before gateway starts.
+4. **`patchModelApiKey(configDir, jwtSecret)`** — reads enabled `model_presets` rows, decrypts each `api_key_enc`, writes `models.providers.<id>.apiKey` and `auth.profiles.<id>:default` into `openclaw.json`.
+5. Read container id/name via corresponding runtime command.
+6. Try reading generated `openclaw.json` token override from config dir.
+7. Optional domain mode:
    - Use `licenses.nginx_host` directly
    - Write nginx conf and reload nginx
    - Promote URL to `wss://` and `https://`
-7. Update row to `ready` with container metadata and final urls/token.
-8. On error, set `failed` and write `provision_error`.
+8. Update row to `ready` with container metadata and final urls/token.
+9. On error, set `failed` and write `provision_error`.
+
+## Bootstrap Config Flow
+
+After provisioning completes, the openclaw.json has a baseline config but is missing the messaging channel credentials (Feishu appId/appSecret). The bootstrap wizard in exec fills this gap.
+
+### needsBootstrap Response (`POST /api/verify`)
+
+`verify.ts` returns a `needsBootstrap` object alongside `nodeConfig`:
+
+```json
+{
+  "needsBootstrap": { "feishu": true }
+}
+```
+
+`feishu: true` when `licenses.wizard_feishu_done = 0` (not yet configured).
+The field is per-step, allowing future wizard steps to be added independently.
+
+### Bootstrap Config Endpoint (`POST /api/licenses/:id/bootstrap-config`)
+
+File: `packages/api/src/routes/bootstrap-config.ts`
+
+- **Auth**: `authToken` in request body (matches `licenses.auth_token` — no JWT required, exec calls this directly)
+- **Whitelist**: only `channels.feishu.appId` and `channels.feishu.appSecret` are written
+- **Effect**: patches `openclaw.json` in the container's config dir, sets `wizard_feishu_done = 1`
+- **Idempotent**: can be called again from exec Settings to reconfigure
+
+### openclaw.json Write Stages
+
+| Stage | Writer | Fields Written |
+|-------|--------|---------------|
+| Provision script | `provision-docker.sh` | `gateway`, `auth.profiles`, `tools`, `models`, `agents`, `messages`, `commands`, `session` |
+| Model apiKey injection | `patchModelApiKey()` | `models.providers.<id>.apiKey`, `auth.profiles.<id>:default` |
+| Token sync | `syncTokenToConfig()` in verify | `gateway.auth.token`, `gateway.remote.token` |
+| Bootstrap wizard | `bootstrap-config` API | `channels.feishu.appId`, `channels.feishu.appSecret` |
+
+### model_presets Table
+
+Stores pre-configured AI provider presets with encrypted API keys.
+
+| Column | Description |
+|--------|-------------|
+| `provider_id` | Provider key (e.g. `zai`) — used as key in `models.providers` |
+| `label` | Display name |
+| `base_url` | API base URL |
+| `api` | API type (`openai-completions`) |
+| `model_id` | Default model to register |
+| `api_key_enc` | AES-256-GCM encrypted API key (`iv:authTag:ciphertext`) |
+| `enabled` | Whether to inject during provision |
+
+Default seed: `zai` / `glm-4.7-flash` (free tier, no key required on first boot — key can be set via admin API).
+
+Encryption key is derived from `SHA-256(JWT_SECRET)`.
 
 ## Verify Gate Dependency
 File: `packages/api/src/routes/verify.ts`
@@ -79,8 +135,12 @@ Note:
 - `packages/api/src/routes/licenses.ts`
 - `packages/api/src/routes/settings.ts`
 - `packages/api/src/routes/verify.ts`
+- `packages/api/src/routes/bootstrap-config.ts`
+- `packages/api/src/routes/model-presets.ts`
+- `packages/api/src/services/crypto.ts`
 - `packages/api/src/services/settingsService.ts`
 - `packages/api/src/services/provisioning/licenseProvisioningService.ts`
+- `packages/api/src/services/provisioning/patchModelApiKey.ts`
 - `packages/api/src/services/provisioning/scriptRunner.ts`
 - `packages/api/src/services/provisioning/nginxService.ts`
 - `packages/api/src/services/provisioning/nameBuilder.ts`
