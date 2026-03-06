@@ -18,22 +18,40 @@ Runtime environment contract for API/UI startup and provisioning operations.
 
 | Variable | Default | Required | Purpose |
 |---|---|---|---|
-| `OPENCLAW_DATA_DIR` | `/data/openclaw` | No | Initial default for `settings.data_dir` |
-| `OPENCLAW_RUNTIME_DIR` | `/opt/openclaw` | No | Initial default for `settings.runtime_dir` |
-| `OPENCLAW_HOST_IP` | `127.0.0.1` | No | Initial default for `settings.host_ip` |
-| `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Initial default for `settings.gateway_port_start` |
-| `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Initial default for `settings.gateway_port_end` |
-| `OPENCLAW_BRIDGE_PORT_START` | `28789` | No | Initial default for `settings.bridge_port_start` |
-| `OPENCLAW_BRIDGE_PORT_END` | `28999` | No | Initial default for `settings.bridge_port_end` |
-| `OPENCLAW_BASE_DOMAIN` | empty | No | Initial default for `settings.base_domain` |
+| `OPENCLAW_DATA_DIR` | - | **Yes** | Instance data root dir (per-license config/workspace parent) |
+| `OPENCLAW_RUNTIME_DIR` | - | **Yes** | Directory containing docker-compose.yml and provision scripts |
+| `OPENCLAW_RUNTIME_PROVIDER` | auto-detect | No | `docker` or `podman` (auto-detected via socket if omitted) |
+| `OPENCLAW_HOST_IP` | `127.0.0.1` | No | Host IP for gateway URL generation |
+| `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Gateway port range start |
+| `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Gateway port range end |
+| `OPENCLAW_BRIDGE_PORT_START` | `28789` | No | Bridge port range start |
+| `OPENCLAW_BRIDGE_PORT_END` | `28999` | No | Bridge port range end |
+| `OPENCLAW_BASE_DOMAIN` | empty | No | Base domain for per-instance subdomain routing |
 | `NGINX_SITE_DIR` | `/etc/nginx/conf.d/openclaw` | Domain mode | Where generated nginx conf is written |
 | `NGINX_RELOAD_CMD` | `nginx -s reload` | Domain mode | Nginx reload command |
+| `TENANT_PUBLIC_URL` | empty | No | Externally-reachable tenant API URL (used by exec bootstrap) |
+
+### Path Resolution
+`OPENCLAW_RUNTIME_DIR` 和 `OPENCLAW_DATA_DIR` 支持相对路径（如 `./openclaw`、`./openclaw-data`）。
+API 启动时通过向上查找 `.env` 文件定位项目根目录，所有相对路径基于项目根 `resolve()`。
+
+示例（项目根 = `/opt/openclaw-tenant`）：
+- `../openclaw` → `/opt/openclaw`
+- `../openclaw-data` → `/opt/openclaw-data`
+
+绝对路径不受影响，直接使用。
+
+### Deprecated Variables
+以下变量已不再使用，可从 `.env` 中移除：
+- `OPENCLAW_PROVISION_SCRIPT` — 已由 `resolveProvisionScriptPath()` 自动按 runtime provider 查找
+- `OPENCLAW_IMAGE` — 未被代码引用
 
 ## Precedence Notes
 - `OPENCLAW_*` values are used to seed `settings` row when it does not exist.
 - After `settings` row is created, global config is managed by DB/UI (`/api/settings`).
 - On `POST /api/licenses`, effective runtime/domain values are copied into license row as snapshot.
 - Provisioning should execute against values stored on each license (`runtime_provider/runtime_dir/data_dir/nginx_host`).
+- `runtime_dir`/`data_dir` 从 license 行读取后会再次 `resolve()`，确保历史存入的相对路径也能正确解析。
 
 ## Local Development Baseline
 1. Copy `.env.example` to `.env`.

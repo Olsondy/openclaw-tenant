@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { getDb } from "../../db/client";
 import { type RuntimeProvider, resolveProvisionScriptPath } from "../settingsService";
 import { buildConfigDir, buildWorkspaceDir } from "./nameBuilder";
@@ -66,8 +66,10 @@ async function runProvisioning(licenseId: number): Promise<void> {
 
     const runtimeProvider: RuntimeProvider =
       license.runtime_provider === "podman" ? "podman" : "docker";
-    const runtimeDir = license.runtime_dir ?? process.env.OPENCLAW_RUNTIME_DIR ?? null;
-    const dataDir = license.data_dir ?? process.env.OPENCLAW_DATA_DIR ?? null;
+    const rawRuntimeDir = license.runtime_dir ?? process.env.OPENCLAW_RUNTIME_DIR ?? null;
+    const rawDataDir = license.data_dir ?? process.env.OPENCLAW_DATA_DIR ?? null;
+    const runtimeDir = rawRuntimeDir ? resolve(rawRuntimeDir) : null;
+    const dataDir = rawDataDir ? resolve(rawDataDir) : null;
     if (!runtimeDir || !dataDir) {
       throw new Error("License runtime configuration missing: runtime_dir/data_dir");
     }

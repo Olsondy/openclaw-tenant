@@ -159,6 +159,9 @@ verify.post("/", async (c) => {
     data: {
       nodeConfig: {
         gatewayUrl: license.gateway_url,
+        gatewayWebUI: license.webui_url
+          ? `${license.webui_url}/#token=${gatewayToken}`
+          : "",
         gatewayToken,
         agentId,
         deviceName,

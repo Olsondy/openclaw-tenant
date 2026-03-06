@@ -19,6 +19,57 @@ This document describes the async provisioning pipeline triggered by `POST /api/
   - request `baseDomain` > `settings.base_domain` > none (IP:port mode)
 - `licenses.nginx_host` is written at creation and treated as authoritative in provisioning.
 
+## Directory Structure & Path Resolution
+
+### Project Root Detection
+`.env` 中的 `OPENCLAW_RUNTIME_DIR` 和 `OPENCLAW_DATA_DIR` 支持相对路径（如 `./openclaw`）。
+API 启动时通过 `findProjectRoot()` 向上查找包含 `.env` 的目录作为项目根，所有相对路径基于此目录 `resolve()`。
+
+File: `packages/api/src/services/settingsService.ts`
+
+### Per-Instance Host Directory Layout
+每个 license 实例在 `OPENCLAW_DATA_DIR` 下创建独立子目录。
+
+File: `packages/api/src/services/provisioning/nameBuilder.ts`
+
+命名规则：`openclaw-{ownerTag}-{licenseId}`
+
+示例（`OPENCLAW_DATA_DIR=../openclaw-data`, ownerTag=`alice`, licenseId=`1`）:
+
+```
+openclaw-data/                              ← OPENCLAW_DATA_DIR (宿主机)
+└── openclaw-alice-1/                       ← composeProject
+    └── .openclaw/                          ← configDir
+        ├── openclaw.json                   ← 核心配置文件
+        ├── identity/                       ← 设备身份
+        ├── workspace/                      ← workspaceDir
+        └── agents/main/
+            ├── agent/
+            └── sessions/
+```
+
+### Container Bind-Mount Mapping
+Provision 脚本将宿主机目录挂载到容器内：
+
+| 宿主机路径 | 容器路径 | 说明 |
+|---|---|---|
+| `{dataDir}/{composeProject}/.openclaw` | `/home/node/.openclaw` | 配置 + workspace |
+
+容器内 workspace 路径由 `openclaw.json` 中 `agents.defaults.workspace` 决定（默认 `/home/node/.openclaw/workspace`）。
+租户修改此值只影响容器内部行为，不影响 tenant API。
+
+### Path Resolution in Provisioning
+`licenseProvisioningService.ts` 从 license 行读取 `runtime_dir` / `data_dir` 后，
+通过 `resolve()` 确保相对路径（历史数据）也能正确解析为绝对路径。
+
+### Script Runner (Cross-Platform)
+File: `packages/api/src/services/provisioning/scriptRunner.ts`
+
+- Linux/macOS: 直接 `bash <script>`
+- Windows (Git Bash/MSYS2): 使用 `child_process.spawn` + `shell: true`，
+  通过系统 shell 解析 PATH 中的 bash，避免 Bun/libuv 直接 spawn MSYS2 可执行文件的兼容性问题。
+- spawn 前会验证 `cwd` 和脚本路径是否存在，POSIX 路径自动通过 `cygpath` 转换为 Windows 路径。
+
 ## Trigger Points
 
 ### On License Creation

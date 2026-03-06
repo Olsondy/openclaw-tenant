@@ -20,7 +20,7 @@ export function buildConfigDir(dataDir: string, composeProject: string): string 
 }
 
 export function buildWorkspaceDir(dataDir: string, composeProject: string): string {
-  return `${dataDir}/${composeProject}/workspace`;
+  return `${dataDir}/${composeProject}/.openclaw/workspace`;
 }
 
 export function buildNginxHost(ownerTag: string, licenseId: number, baseDomain: string): string {

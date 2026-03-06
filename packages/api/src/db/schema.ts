@@ -42,8 +42,8 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS settings (
     id                  INTEGER PRIMARY KEY CHECK (id = 1),
     runtime_provider    TEXT NOT NULL DEFAULT 'docker',
-    runtime_dir         TEXT NOT NULL DEFAULT '/opt/openclaw',
-    data_dir            TEXT NOT NULL DEFAULT '/data/openclaw',
+    runtime_dir         TEXT NOT NULL,
+    data_dir            TEXT NOT NULL,
     host_ip             TEXT NOT NULL DEFAULT '127.0.0.1',
     base_domain         TEXT,
     gateway_port_start  INTEGER NOT NULL DEFAULT 18789,

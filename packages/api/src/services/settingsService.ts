@@ -1,6 +1,26 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
+
+/**
+ * 向上查找包含 .env 文件的目录作为项目根目录。
+ * 用于将 .env 中的相对路径（如 ./openclaw）基于项目根 resolve。
+ * 找不到时回退到 process.cwd()。
+ */
+function findProjectRoot(): string {
+  let dir = resolve(import.meta.dir ?? process.cwd());
+  const root = dirname(dir) === dir ? dir : undefined; // filesystem root guard
+  while (dir) {
+    if (existsSync(join(dir, ".env")) || existsSync(join(dir, ".env.example"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return root ?? process.cwd();
+}
+
+const PROJECT_ROOT = findProjectRoot();
+console.log(`[settings] PROJECT_ROOT=${PROJECT_ROOT}`);
 
 export type RuntimeProvider = "docker" | "podman";
 
@@ -43,14 +63,27 @@ function parsePort(raw: string | undefined, fallback: number): number {
 }
 
 export function resolveDefaultSettingsFromEnv(env: NodeJS.ProcessEnv = process.env) {
+  const runtimeDir = env.OPENCLAW_RUNTIME_DIR?.trim();
+  const dataDir = env.OPENCLAW_DATA_DIR?.trim();
+
+  if (!runtimeDir || !dataDir) {
+    console.error("\n========================================================");
+    console.error("  [FATAL] Missing required environment variables in .env");
+    if (!runtimeDir) console.error("  -> OPENCLAW_RUNTIME_DIR  (path to docker-compose.yml)");
+    if (!dataDir) console.error("  -> OPENCLAW_DATA_DIR     (instance data root dir)");
+    console.error("");
+    console.error("  Please add them to your .env file and restart the API.");
+    console.error("========================================================\n");
+    throw new Error("Missing required env vars: check .env file");
+  }
+
   return {
     runtime_provider:
-      // env 显式指定优先，否则自动检测
       (env.OPENCLAW_RUNTIME_PROVIDER === "podman" || env.OPENCLAW_RUNTIME_PROVIDER === "docker")
         ? (env.OPENCLAW_RUNTIME_PROVIDER as RuntimeProvider)
         : detectRuntimeProvider(),
-    runtime_dir: (env.OPENCLAW_RUNTIME_DIR ?? "/opt/openclaw").trim() || "/opt/openclaw",
-    data_dir: (env.OPENCLAW_DATA_DIR ?? "/data/openclaw").trim() || "/data/openclaw",
+    runtime_dir: resolve(PROJECT_ROOT, runtimeDir),
+    data_dir: resolve(PROJECT_ROOT, dataDir),
     host_ip: (env.OPENCLAW_HOST_IP ?? "127.0.0.1").trim() || "127.0.0.1",
     base_domain: env.OPENCLAW_BASE_DOMAIN?.trim() || null,
     gateway_port_start: parsePort(env.OPENCLAW_GATEWAY_PORT_START, 18789),
