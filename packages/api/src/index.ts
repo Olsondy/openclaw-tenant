@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { getDb } from "./db/client";
-import { jwtMiddleware } from "./middleware/jwt";
+
+import approveWebuiRoutes from "./routes/approve-webui";
 import authRoutes from "./routes/auth";
 import bootstrapConfigRoutes from "./routes/bootstrap-config";
 import healthRoutes from "./routes/health";
@@ -19,17 +20,16 @@ const app = new Hono();
 
 app.use("*", cors());
 
-// Public routes
+// exec 接口（无 JWT，由 licenseKey+hwid 双因子保护，Nginx 层限流）
 app.route("/api/auth", authRoutes);
 app.route("/api/verify", verifyRoutes);
 app.route("/api/licenses", bootstrapConfigRoutes);
+app.route("/api/licenses", approveWebuiRoutes);
 
-// Protected routes
-app.use("/api/licenses/*", jwtMiddleware);
+// 页面接口（各路由文件内部自挂 jwtMiddleware）
 app.route("/api/licenses", licensesRoutes);
-app.use("/api/settings/*", jwtMiddleware);
-app.route("/api/settings", settingsRoutes);
 app.route("/api/licenses/health", healthRoutes);
+app.route("/api/settings", settingsRoutes);
 app.route("/api/settings/model-presets", modelPresetsRoutes);
 
 // Serve static UI (built Svelte)

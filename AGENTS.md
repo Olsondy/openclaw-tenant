@@ -86,9 +86,9 @@ This project uses **Biome** (v2) as the unified formatter + linter, and **svelte
 
 | Tool | Scope | Purpose |
 |------|-------|---------|
-| `@biomejs/biome` | `*.ts`, `*.js`, `*.json` | Format + lint (replaces ESLint + Prettier) |
-| `svelte-check` | `packages/ui/**/*.svelte` | Svelte 5 type checking + prop validation |
-| `husky` + `lint-staged` | Git pre-commit | Blocks commit if either tool fails |
+| `@biomejs/biome` | `*.ts`, `*.js`, `*.json` | Format + lint（替代 ESLint + Prettier）|
+| `svelte-check` | `packages/ui/**/*.svelte` | Svelte 5 类型检查 + prop 校验 |
+| `husky` | Git pre-commit | 提交前自动运行 biome + svelte-check |
 
 #### Running Checks Manually
 
@@ -118,17 +118,16 @@ Key decisions (do NOT override without discussion):
   - `style.useNodejsImportProtocol` → existing imports use bare specifiers (`"fs"`, `"path"`, etc.)
 - **Svelte-specific override**: `correctness.noUnusedVariables` and `correctness.noUnusedImports` are **off** for `*.svelte` files — Biome cannot see template references, causing false positives.
 
-#### Pre-commit Hook (`lint-staged.config.mjs`)
+#### Pre-commit Hook (`.husky/pre-commit`)
 
 On every `git commit`, the following runs automatically:
 
-```js
-// lint-staged.config.mjs
-"*.{js,ts,json}": "biome check --write --no-errors-on-unmatched"
-"packages/ui/**/*.{svelte,ts,js}": () => "bun run --cwd packages/ui check"
+```sh
+bunx biome check --write          # 格式化 + lint 全量检查
+bun run --cwd packages/ui check    # Svelte 类型检查
 ```
 
-Any Biome error or `svelte-check` error **blocks the commit**.
+> `lint-staged` 已移除。Biome 全量检查速度极快（< 1s），无需增量机制，且 lint-staged 的 git stash 机制会在某些场景下触发 `fatal: Needed a single revision` 错误。
 
 #### Agent Rules
 

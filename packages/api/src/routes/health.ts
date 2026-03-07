@@ -1,8 +1,11 @@
 import { Hono } from "hono";
 import { getDb } from "../db/client.js";
+import { jwtMiddleware } from "../middleware/jwt";
 import { batchProbe } from "../services/healthProbe.js";
 
 const router = new Hono();
+// 页面接口：要求管理员 JWT 会话（防止 host_ip / gateway_port 信息泄露）
+router.use("/*", jwtMiddleware);
 
 /**
  * GET /api/licenses/health
@@ -12,10 +15,7 @@ const router = new Hono();
 router.get("/", async (c) => {
   const db = getDb();
   const rows = db
-    .query<
-      { id: number; gateway_port: number; host_ip: string | null },
-      []
-    >(
+    .query<{ id: number; gateway_port: number; host_ip: string | null }, []>(
       `SELECT l.id, l.gateway_port, s.host_ip
        FROM licenses l
        LEFT JOIN settings s ON s.id = 1

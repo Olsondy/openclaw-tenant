@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { Hono } from "hono";
 import { getDb } from "../db/client";
+import { jwtMiddleware } from "../middleware/jwt";
 import { generateLicenseKey } from "../services/licenseService";
 import { enqueueLicenseProvisioning } from "../services/provisioning/licenseProvisioningService";
 import {
@@ -12,6 +13,8 @@ import { allocatePortPair } from "../services/provisioning/portAllocator";
 import { getSettingsRow } from "../services/settingsService";
 
 const licenses = new Hono();
+// 页面接口：要求管理员 JWT 会话
+licenses.use("/*", jwtMiddleware);
 
 licenses.get("/", (c) => {
   const db = getDb();

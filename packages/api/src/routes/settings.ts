@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { getDb } from "../db/client";
+import { jwtMiddleware } from "../middleware/jwt";
 import { getSettingsRow, isRuntimeProvider } from "../services/settingsService";
 
 interface SettingsBody {
@@ -19,6 +20,8 @@ function isValidPort(n: number): boolean {
 }
 
 const settings = new Hono();
+// 页面接口：要求管理员 JWT 会话
+settings.use("/*", jwtMiddleware);
 
 settings.get("/", (c) => {
   const db = getDb();
@@ -93,4 +96,3 @@ settings.put("/", async (c) => {
 });
 
 export default settings;
-
