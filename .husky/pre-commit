@@ -1,8 +1,5 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-# 格式化+lint 全量检查（Biome 极快，无需 lint-staged 增量）
 bunx biome check --write
-
-# Svelte 类型检查
 bun run --cwd packages/ui check
