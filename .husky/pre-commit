@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-bunx biome check --write
+# Format + lint check only (no --write, avoids modifying staged files)
+bunx biome check
+
+# Svelte type check
 bun run --cwd packages/ui check

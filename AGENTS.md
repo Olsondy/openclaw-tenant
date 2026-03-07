@@ -123,11 +123,12 @@ Key decisions (do NOT override without discussion):
 On every `git commit`, the following runs automatically:
 
 ```sh
-bunx biome check --write          # 格式化 + lint 全量检查
-bun run --cwd packages/ui check    # Svelte 类型检查
+bunx biome check              # 格式化 + lint 检查（只检查不修改，避免破坏 staged 状态）
+bun run --cwd packages/ui check    # Svelte 类型检查（--fail-on-warnings false）
 ```
 
-> `lint-staged` 已移除。Biome 全量检查速度极快（< 1s），无需增量机制，且 lint-staged 的 git stash 机制会在某些场景下触发 `fatal: Needed a single revision` 错误。
+> `lint-staged` 已移除。Biome 全量检查速度极快（< 1s），无需增量机制。
+> Hook 中只做检查（不带 `--write`），如需修复格式请手动运行 `bunx biome check --write`。
 
 #### Agent Rules
 

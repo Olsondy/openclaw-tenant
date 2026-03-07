@@ -1,192 +1,198 @@
 <script lang="ts">
-  import { api, clearToken, type License, type RuntimeProvider, type Settings } from './api'
+import { api, clearToken, type License, type RuntimeProvider, type Settings } from "./api";
 
-  interface Props {
-    onLogout: () => void
+interface Props {
+  onLogout: () => void;
+}
+let { onLogout }: Props = $props();
+
+let licenses = $state<License[]>([]);
+let loading = $state(true);
+let generating = $state(false);
+let settingsLoading = $state(true);
+let savingSettings = $state(false);
+let error = $state("");
+let settings = $state<Settings | null>(null);
+let healthStatus = $state<Record<number, boolean>>({});
+let healthTimer: ReturnType<typeof setInterval> | null = null;
+
+// 弹窗状态
+let showModal = $state(false);
+let showSettingsModal = $state(false);
+// 表单字段
+let formOwnerTag = $state("");
+let formExpiryDate = $state(""); // 留空 = 永久
+let formTokenTtlDays = $state(7);
+let formHostIp = $state(""); // 留空 = 服务器默认
+let formBaseDomain = $state(""); // 留空 = 使用全局 settings.base_domain
+
+// Settings 表单字段
+let settingsRuntimeProvider = $state<RuntimeProvider>("docker");
+let settingsRuntimeDir = $state("");
+let settingsDataDir = $state("");
+let settingsHostIp = $state("");
+let settingsBaseDomain = $state("");
+let settingsGatewayPortStart = $state(18789);
+let settingsGatewayPortEnd = $state(18999);
+let settingsBridgePortStart = $state(28789);
+let settingsBridgePortEnd = $state(28999);
+
+const STATUS = {
+  unbound: { label: "待激活", cls: "bg-gray-100 text-gray-600" },
+  active: { label: "已激活", cls: "bg-green-100 text-green-700" },
+  revoked: { label: "已注销", cls: "bg-red-100 text-red-600" },
+} as const;
+
+function applySettingsToForm(row: Settings) {
+  settingsRuntimeProvider = row.runtime_provider;
+  settingsRuntimeDir = row.runtime_dir;
+  settingsDataDir = row.data_dir;
+  settingsHostIp = row.host_ip;
+  settingsBaseDomain = row.base_domain ?? "";
+  settingsGatewayPortStart = row.gateway_port_start;
+  settingsGatewayPortEnd = row.gateway_port_end;
+  settingsBridgePortStart = row.bridge_port_start;
+  settingsBridgePortEnd = row.bridge_port_end;
+}
+
+async function load() {
+  try {
+    const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()]);
+    licenses = licenseRes.data;
+    settings = settingsRes.data;
+    applySettingsToForm(settingsRes.data);
+  } catch (e) {
+    error = e instanceof Error ? e.message : "加载失败";
+  } finally {
+    loading = false;
+    settingsLoading = false;
   }
-  let { onLogout }: Props = $props()
+}
 
-  let licenses = $state<License[]>([])
-  let loading = $state(true)
-  let generating = $state(false)
-  let settingsLoading = $state(true)
-  let savingSettings = $state(false)
-  let error = $state('')
-  let settings = $state<Settings | null>(null)
-  let healthStatus = $state<Record<number, boolean>>({})
-  let healthTimer: ReturnType<typeof setInterval> | null = null
+function openModal() {
+  formOwnerTag = "";
+  formExpiryDate = "";
+  formTokenTtlDays = 7;
+  formHostIp = settings?.host_ip ?? "";
+  formBaseDomain = "";
+  showModal = true;
+}
 
-  // 弹窗状态
-  let showModal = $state(false)
-  let showSettingsModal = $state(false)
-  // 表单字段
-  let formOwnerTag = $state('')
-  let formExpiryDate = $state('') // 留空 = 永久
-  let formTokenTtlDays = $state(7)
-  let formHostIp = $state('') // 留空 = 服务器默认
-  let formBaseDomain = $state('') // 留空 = 使用全局 settings.base_domain
+function openSettings() {
+  if (settings) applySettingsToForm(settings);
+  showSettingsModal = true;
+}
 
-  // Settings 表单字段
-  let settingsRuntimeProvider = $state<RuntimeProvider>('docker')
-  let settingsRuntimeDir = $state('')
-  let settingsDataDir = $state('')
-  let settingsHostIp = $state('')
-  let settingsBaseDomain = $state('')
-  let settingsGatewayPortStart = $state(18789)
-  let settingsGatewayPortEnd = $state(18999)
-  let settingsBridgePortStart = $state(28789)
-  let settingsBridgePortEnd = $state(28999)
-
-  const STATUS = {
-    unbound: { label: '待激活', cls: 'bg-gray-100 text-gray-600' },
-    active: { label: '已激活', cls: 'bg-green-100 text-green-700' },
-    revoked: { label: '已注销', cls: 'bg-red-100 text-red-600' },
-  } as const
-
-  function applySettingsToForm(row: Settings) {
-    settingsRuntimeProvider = row.runtime_provider
-    settingsRuntimeDir = row.runtime_dir
-    settingsDataDir = row.data_dir
-    settingsHostIp = row.host_ip
-    settingsBaseDomain = row.base_domain ?? ''
-    settingsGatewayPortStart = row.gateway_port_start
-    settingsGatewayPortEnd = row.gateway_port_end
-    settingsBridgePortStart = row.bridge_port_start
-    settingsBridgePortEnd = row.bridge_port_end
+async function saveSettings() {
+  savingSettings = true;
+  try {
+    const res = await api.updateSettings({
+      runtime_provider: settingsRuntimeProvider,
+      runtime_dir: settingsRuntimeDir.trim(),
+      data_dir: settingsDataDir.trim(),
+      host_ip: settingsHostIp.trim(),
+      base_domain: settingsBaseDomain.trim() || null,
+      gateway_port_start: Number(settingsGatewayPortStart),
+      gateway_port_end: Number(settingsGatewayPortEnd),
+      bridge_port_start: Number(settingsBridgePortStart),
+      bridge_port_end: Number(settingsBridgePortEnd),
+    });
+    settings = res.data;
+    applySettingsToForm(res.data);
+    showSettingsModal = false;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "保存设置失败";
+  } finally {
+    savingSettings = false;
   }
+}
 
-  async function load() {
-    try {
-      const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()])
-      licenses = licenseRes.data
-      settings = settingsRes.data
-      applySettingsToForm(settingsRes.data)
-    } catch (e) {
-      error = e instanceof Error ? e.message : '加载失败'
-    } finally {
-      loading = false
-      settingsLoading = false
+async function generate() {
+  generating = true;
+  try {
+    const opts: Parameters<typeof api.generateLicense>[0] = {};
+    if (formOwnerTag) opts.ownerTag = formOwnerTag;
+    if (formExpiryDate) opts.expiryDate = formExpiryDate;
+    if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays;
+    if (formHostIp) opts.hostIp = formHostIp;
+    if (formBaseDomain) opts.baseDomain = formBaseDomain;
+
+    await api.generateLicense(opts);
+    // 重新从服务端拉取，确保列表与数据库完全对齐
+    await load();
+    await pollHealth();
+    showModal = false;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "生成失败";
+  } finally {
+    generating = false;
+  }
+}
+
+async function revoke(license: License) {
+  if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return;
+  try {
+    await api.revokeLicense(license.id);
+    licenses = licenses.map((l) =>
+      l.id === license.id ? { ...l, status: "revoked" as const } : l,
+    );
+  } catch (e) {
+    error = e instanceof Error ? e.message : "撤销失败";
+  }
+}
+
+function logout() {
+  clearToken();
+  onLogout();
+}
+
+async function pollHealth() {
+  try {
+    const res = await api.getHealth();
+    healthStatus = res.data;
+  } catch {
+    // ignore health poll errors
+  }
+}
+
+let pendingTimer: ReturnType<typeof setInterval> | null = null;
+async function pollPending() {
+  const hasPending = licenses.some(
+    (l) => l.provision_status === "pending" || l.provision_status === "running",
+  );
+  if (!hasPending) {
+    if (pendingTimer) {
+      clearInterval(pendingTimer);
+      pendingTimer = null;
     }
+    return;
   }
-
-  function openModal() {
-    formOwnerTag = ''
-    formExpiryDate = ''
-    formTokenTtlDays = 7
-    formHostIp = settings?.host_ip ?? ''
-    formBaseDomain = ''
-    showModal = true
+  try {
+    await load();
+    await pollHealth();
+  } catch {
+    // ignore
   }
+}
 
-  function openSettings() {
-    if (settings) applySettingsToForm(settings)
-    showSettingsModal = true
+$effect(() => {
+  load().then(() => pollHealth());
+  healthTimer = setInterval(pollHealth, 30_000);
+  return () => {
+    if (healthTimer) clearInterval(healthTimer);
+    if (pendingTimer) clearInterval(pendingTimer);
+  };
+});
+
+// 当列表变动且存在未完成节点时启发式启动短轮询
+$effect(() => {
+  const hasPending = licenses.some(
+    (l) => l.provision_status === "pending" || l.provision_status === "running",
+  );
+  if (hasPending && !pendingTimer) {
+    pendingTimer = setInterval(pollPending, 3_000);
   }
-
-  async function saveSettings() {
-    savingSettings = true
-    try {
-      const res = await api.updateSettings({
-        runtime_provider: settingsRuntimeProvider,
-        runtime_dir: settingsRuntimeDir.trim(),
-        data_dir: settingsDataDir.trim(),
-        host_ip: settingsHostIp.trim(),
-        base_domain: settingsBaseDomain.trim() || null,
-        gateway_port_start: Number(settingsGatewayPortStart),
-        gateway_port_end: Number(settingsGatewayPortEnd),
-        bridge_port_start: Number(settingsBridgePortStart),
-        bridge_port_end: Number(settingsBridgePortEnd),
-      })
-      settings = res.data
-      applySettingsToForm(res.data)
-      showSettingsModal = false
-    } catch (e) {
-      error = e instanceof Error ? e.message : '保存设置失败'
-    } finally {
-      savingSettings = false
-    }
-  }
-
-  async function generate() {
-    generating = true
-    try {
-      const opts: Parameters<typeof api.generateLicense>[0] = {}
-      if (formOwnerTag) opts.ownerTag = formOwnerTag
-      if (formExpiryDate) opts.expiryDate = formExpiryDate
-      if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays
-      if (formHostIp) opts.hostIp = formHostIp
-      if (formBaseDomain) opts.baseDomain = formBaseDomain
-
-      await api.generateLicense(opts)
-      // 重新从服务端拉取，确保列表与数据库完全对齐
-      await load()
-      await pollHealth()
-      showModal = false
-    } catch (e) {
-      error = e instanceof Error ? e.message : '生成失败'
-    } finally {
-      generating = false
-    }
-  }
-
-  async function revoke(license: License) {
-    if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return
-    try {
-      await api.revokeLicense(license.id)
-      licenses = licenses.map((l) => (l.id === license.id ? { ...l, status: 'revoked' as const } : l))
-    } catch (e) {
-      error = e instanceof Error ? e.message : '撤销失败'
-    }
-  }
-
-  function logout() {
-    clearToken()
-    onLogout()
-  }
-
-  async function pollHealth() {
-    try {
-      const res = await api.getHealth()
-      healthStatus = res.data
-    } catch {
-      // ignore health poll errors
-    }
-  }
-
-  let pendingTimer: ReturnType<typeof setInterval> | null = null
-  async function pollPending() {
-    const hasPending = licenses.some((l) => l.provision_status === 'pending' || l.provision_status === 'running')
-    if (!hasPending) {
-      if (pendingTimer) {
-        clearInterval(pendingTimer)
-        pendingTimer = null
-      }
-      return
-    }
-    try {
-      await load()
-      await pollHealth()
-    } catch {
-      // ignore
-    }
-  }
-
-  $effect(() => {
-    load().then(() => pollHealth())
-    healthTimer = setInterval(pollHealth, 30_000)
-    return () => {
-      if (healthTimer) clearInterval(healthTimer)
-      if (pendingTimer) clearInterval(pendingTimer)
-    }
-  })
-
-  // 当列表变动且存在未完成节点时启发式启动短轮询
-  $effect(() => {
-    const hasPending = licenses.some((l) => l.provision_status === 'pending' || l.provision_status === 'running')
-    if (hasPending && !pendingTimer) {
-      pendingTimer = setInterval(pollPending, 3_000)
-    }
-  })
+});
 </script>
 
 <div class="min-h-screen bg-slate-50 font-sans selection:bg-blue-200">
@@ -471,8 +477,13 @@
   <!-- 遮罩 -->
   <div
     class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
-    onclick={(e) => {
+    role="button"
+    tabindex="-1"
+        onclick={(e) => {
       if (e.target === e.currentTarget) showModal = false
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') showModal = false
     }}
   >
     <!-- 弹窗卡片 -->
@@ -493,7 +504,7 @@
           >
           签发新凭证
         </h3>
-        <button onclick={() => (showModal = false)} class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
+        <button onclick={() => (showModal = false)} aria-label="关闭弹窗" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -504,10 +515,11 @@
       <div class="relative px-6 py-5 space-y-4 z-10 max-h-[70vh] overflow-y-auto">
         <!-- Owner Tag -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+          <label for="formOwnerTag" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
             归属标签 (Owner Tag) <span class="text-slate-400 font-normal ml-1">可留空</span>
           </label>
           <input
+            id="formOwnerTag"
             type="text"
             bind:value={formOwnerTag}
             placeholder="例: alice, enterprise-01"
@@ -517,10 +529,11 @@
 
         <!-- License 到期日 -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+          <label for="formExpiryDate" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
             业务本身到期日 <span class="text-slate-400 font-normal ml-1">留空视作永久</span>
           </label>
           <input
+            id="formExpiryDate"
             type="date"
             bind:value={formExpiryDate}
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all text-slate-700"
@@ -529,10 +542,11 @@
 
         <!-- Token 有效期 -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5"> Gateway Token 轮换周期 </label>
+          <label for="formTokenTtlDays" class="block text-[13px] font-semibold text-slate-700 mb-1.5"> Gateway Token 轮换周期 </label>
           <div class="flex items-center gap-3">
             <div class="relative w-28">
               <input
+                id="formTokenTtlDays"
                 type="number"
                 bind:value={formTokenTtlDays}
                 min="1"
@@ -556,10 +570,11 @@
 
         <!-- 宿主机 IP -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+          <label for="formHostIp" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
             宿主机 IP (Host IP) <span class="text-slate-400 font-normal ml-1">默认取全局设置</span>
           </label>
           <input
+            id="formHostIp"
             type="text"
             bind:value={formHostIp}
             placeholder={settings?.host_ip ?? 'e.g. 192.168.1.100'}
@@ -569,10 +584,11 @@
 
         <!-- 自定义域名 -->
         <div>
-          <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+          <label for="formBaseDomain" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
             独立域名接入 <span class="text-slate-400 font-normal ml-1">留空继承全局域名</span>
           </label>
           <input
+            id="formBaseDomain"
             type="text"
             bind:value={formBaseDomain}
             placeholder={settings?.base_domain ?? 'e.g. openclaw.example.com'}
@@ -608,8 +624,13 @@
 {#if showSettingsModal}
   <div
     class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+    role="button"
+    tabindex="-1"
     onclick={(e) => {
       if (e.target === e.currentTarget) showSettingsModal = false
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') showSettingsModal = false
     }}
   >
     <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
@@ -618,7 +639,7 @@
           <h3 class="text-slate-800 font-bold text-lg tracking-tight">全局运行设置</h3>
           <p class="text-[13px] text-slate-500 mt-1">以下为新建 License 时的默认值。创建后各 License 保留独立快照，不受后续全局修改影响。</p>
         </div>
-        <button onclick={() => (showSettingsModal = false)} class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
+        <button onclick={() => (showSettingsModal = false)} aria-label="关闭设置弹窗" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -628,9 +649,10 @@
       <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">容器引擎</label>
+            <label for="settingsRuntimeProvider" class="block text-[13px] font-semibold text-slate-700 mb-0.5">容器引擎</label>
             <p class="text-[11px] text-slate-400 mb-1.5">用于拉起 OpenClaw 实例的容器运行时</p>
             <select
+              id="settingsRuntimeProvider"
               bind:value={settingsRuntimeProvider}
               class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
             >
@@ -639,36 +661,40 @@
             </select>
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">宿主机 IP</label>
+            <label for="settingsHostIp" class="block text-[13px] font-semibold text-slate-700 mb-0.5">宿主机 IP</label>
             <p class="text-[11px] text-slate-400 mb-1.5">服务器公网 / 内网 IP，用于生成 Gateway 连接地址</p>
             <input
+              id="settingsHostIp"
               type="text"
               bind:value={settingsHostIp}
               class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">运行时目录</label>
+            <label for="settingsRuntimeDir" class="block text-[13px] font-semibold text-slate-700 mb-0.5">运行时目录</label>
             <p class="text-[11px] text-slate-400 mb-1.5">OpenClaw docker-compose.yml 所在目录</p>
             <input
+              id="settingsRuntimeDir"
               type="text"
               bind:value={settingsRuntimeDir}
               class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">数据目录</label>
+            <label for="settingsDataDir" class="block text-[13px] font-semibold text-slate-700 mb-0.5">数据目录</label>
             <p class="text-[11px] text-slate-400 mb-1.5">各实例配置和数据文件的根目录（每个 License 一个子文件夹）</p>
             <input
+              id="settingsDataDir"
               type="text"
               bind:value={settingsDataDir}
               class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all font-mono"
             />
           </div>
           <div class="md:col-span-2">
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">全局默认域名</label>
+            <label for="settingsBaseDomain" class="block text-[13px] font-semibold text-slate-700 mb-0.5">全局默认域名</label>
             <p class="text-[11px] text-slate-400 mb-1.5">配置后自动生成 wss:// 地址和 Nginx 反代；留空则走 IP:Port 模式</p>
             <input
+              id="settingsBaseDomain"
               type="text"
               bind:value={settingsBaseDomain}
               placeholder="留空则走 IP 模式"
@@ -676,10 +702,11 @@
             />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">Gateway 端口池</label>
+            <label for="settingsGatewayPortStart" class="block text-[13px] font-semibold text-slate-700 mb-0.5">Gateway 端口池</label>
             <p class="text-[11px] text-slate-400 mb-1.5">每个 License 自动从此范围分配一个 Gateway 端口</p>
             <div class="flex items-center gap-2">
               <input
+                id="settingsGatewayPortStart"
                 type="number"
                 min="1"
                 max="65535"
@@ -697,10 +724,11 @@
             </div>
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-0.5">Bridge 端口池</label>
+            <label for="settingsBridgePortStart" class="block text-[13px] font-semibold text-slate-700 mb-0.5">Bridge 端口池</label>
             <p class="text-[11px] text-slate-400 mb-1.5">每个 License 自动从此范围分配一个 Bridge 端口</p>
             <div class="flex items-center gap-2">
               <input
+                id="settingsBridgePortStart"
                 type="number"
                 min="1"
                 max="65535"
