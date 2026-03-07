@@ -1,4 +1,4 @@
-# Easy OpenClaw Auth
+# Easy OpenClaw Auth (openclaw-tenant)
 
 ![OpenClaw Auth Manager](https://img.shields.io/badge/OpenClaw-Auth%20Manager-blue)
 ![Bun](https://img.shields.io/badge/Runtime-Bun-black?logo=bun)
@@ -6,88 +6,100 @@
 ![Hono](https://img.shields.io/badge/API-Hono-orange)
 ![SQLite](https://img.shields.io/badge/DB-SQLite-blue)
 
-**Easy OpenClaw Auth** is a lightweight, all-in-one authentication and license provisioning manager tailored designed for OpenClaw. It orchestrates user provisioning, token validation loops, bounding HWID credentials, and manages automatic instance node configuration logic.
+**English** | [简体中文](./README.zh-CN.md)
+
+`openclaw-tenant` is a lightweight authentication and license management control plane for OpenClaw.
+It handles license lifecycle, HWID binding, verify flow, and async instance provisioning.
+
+For full multi-module deployment and interaction architecture, see parent repo README:
+- [easy-openclaw/README.md](../README.md)
 
 ---
 
 ## ✨ Features
 
-- **Centralized License Manager**: Generate and manage user licenses, expire controls, and specific container bindings with ease.
-- **Global Settings + License Snapshot**: Manage runtime defaults centrally, while each created license stores effective runtime/domain snapshot for reproducible provisioning.
-- **Dynamic Token Caching**: Generate distinct authorization tokens across multiple tenants securely. Tokens automatically rotate to instance `openclaw.json` config settings.
-- **Hardware Binding (HWID)**: Automatically anchor the specific physical device instance matching upon first usage verification loop.
-- **Async Container Provisioning Queue**: Manages local/remote docker container initializations independently tracking states `pending|running|ready|failed`.
-- **Fast & Modern Stack**: 
-  - Backend: Hono + SQLite (powered by ultra-fast `bun:sqlite` engine).
-  - Frontend: Svelte 5 (Runes state methodology) + TailwindCSS v4.
-  - Zero thick abstraction lines.
+- **Centralized License Manager**: Create, revoke, and manage license lifecycle with runtime binding state.
+- **Global Settings + License Snapshot**: Keep global runtime defaults while snapshotting effective values per created license.
+- **Dynamic Token Rotation**: Rotate gateway token on verify when expired and sync to instance config.
+- **Hardware Binding (HWID)**: Bind license to a physical device on first successful verify.
+- **Async Container Provisioning Queue**: Track instance provisioning with `pending | running | ready | failed`.
+- **Fast & Modern Stack**:
+  - Backend: Hono + SQLite (`bun:sqlite`)
+  - Frontend: Svelte 5 (Runes) + TailwindCSS v4
+
+---
 
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-Ensure you have [Bun](https://bun.sh/) installed:
+
+Ensure Bun is installed:
+
 ```bash
 curl -fsSL https://bun.sh/install | bash
 ```
 
-### 2. Installation
-Clone the repository and install dependency paths natively with bun workspaces.
-```bash
-git clone https://github.com/your-repo/easy-openclaw-auth.git
-cd easy-openclaw-auth
+### 2. Clone & Install
 
+```bash
+git clone https://github.com/Olsondy/openclaw-tenant.git
+cd openclaw-tenant
 bun install
 ```
 
 ### 3. Environment Configuration
-Copy the `.env.example` configurations. It must sit at the root level alongside the workspaces router.
+
 ```bash
 cp .env.example .env
 ```
-Ensure you have declared `JWT_SECRET` and initialized your default `ADMIN_USER` & `ADMIN_PASS`.
 
-### 4. Running the Project
+Set at least:
+- `JWT_SECRET`
+- `ADMIN_USER`
+- `ADMIN_PASS`
 
-#### Development Mode
-You can easily spin up the dev routines via `bun run`. Environment variables inside `.env` are natively injected.
+### 4. Run (Development)
 
 ```bash
-# Terminal 1 - Start the backend API (Hono)
+# Terminal 1 - API
 bun run dev:api
 
-# Terminal 2 - Start the frontend (Vite / Svelte)
+# Terminal 2 - UI
 bun run dev:ui
 ```
 
-*(Note: Do not start routines with `npm` or `pnpm` directly unless you inject `.env` parameters explicitly with tools like `dotenv-cli`.)*
+---
 
-## 📖 Architecture & Directories
-
-This is a Bun Workspace Monorepo structure.
+## 📖 Project Structure
 
 ```text
-easy-openclaw-auth/
+openclaw-tenant/
 ├── packages/
-│   ├── api/            # Hono API Backend (SQLite Database logic)
-│   └── ui/             # Svelte 5 Single Page Application Admin UI
-├── docs/               # Technical specs and detailed API routing details
-├── .env                # Startup defaults (used to seed settings table)
-└── package.json        # Workspace declaration & root scripts
+│   ├── api/            # Hono API backend (SQLite + provisioning logic)
+│   └── ui/             # Svelte 5 admin SPA
+├── docs/               # API and implementation docs
+├── .env.example
+└── package.json
 ```
 
-## 🛠 Documentation references
-Dig deeper into specific infrastructure details handling internally:
+---
+
+## 🛠 Documentation References
 
 - [Authentication & Flow](./docs/AUTHENTICATION.md)
 - [Backend API Contract](./docs/BACKEND_API.md)
 - [License Provisioning Engine](./docs/LICENSE_PROVISIONING.md)
 - [UI Layout Architecture](./docs/UI_DESIGN.md)
 - [Environment Specifics](./docs/ENVIRONMENT.md)
+- [Internationalization Notes](./docs/INTERNATIONALIZATION.md)
+
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please ensure that you check `AGENTS.md` and read the guidelines if submitting infrastructure patching formats. 
+We warmly welcome contributions. Before submitting PRs related to core infrastructure,
+please read [AGENTS.md](./AGENTS.md) in the repository root to follow the default project conventions.
 
 ## 📝 License
 
-Distributed under the MIT License.
+Distributed under the [MIT License](./LICENSE).
