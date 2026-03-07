@@ -29,8 +29,7 @@ function seedLicense(
     execPublicKey = "dGVzdHB1YmxpY2tleXJhdw",
     composeProject = "openclaw-test-1",
     dataDir = TEST_DIR,
-  } =
-    opts;
+  } = opts;
   db.run(
     `INSERT INTO licenses
        (license_key, gateway_token, gateway_url, status, provision_status, exec_public_key, compose_project, data_dir)
@@ -113,16 +112,12 @@ describe("writePairedJson", () => {
     const publicKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
     await writePairedJson(configDir, deviceId, publicKey);
-    const before = JSON.parse(
-      readFileSync(join(configDir, "devices", "paired.json"), "utf8"),
-    );
+    const before = JSON.parse(readFileSync(join(configDir, "devices", "paired.json"), "utf8"));
     const ts = before[deviceId].createdAtMs;
 
     await new Promise((r) => setTimeout(r, 10));
     await writePairedJson(configDir, deviceId, publicKey);
-    const after = JSON.parse(
-      readFileSync(join(configDir, "devices", "paired.json"), "utf8"),
-    );
+    const after = JSON.parse(readFileSync(join(configDir, "devices", "paired.json"), "utf8"));
 
     // 时间戳应保持不变（幂等）
     expect(after[deviceId].createdAtMs).toBe(ts);

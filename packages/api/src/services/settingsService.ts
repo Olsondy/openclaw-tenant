@@ -79,7 +79,7 @@ export function resolveDefaultSettingsFromEnv(env: NodeJS.ProcessEnv = process.e
 
   return {
     runtime_provider:
-      (env.OPENCLAW_RUNTIME_PROVIDER === "podman" || env.OPENCLAW_RUNTIME_PROVIDER === "docker")
+      env.OPENCLAW_RUNTIME_PROVIDER === "podman" || env.OPENCLAW_RUNTIME_PROVIDER === "docker"
         ? (env.OPENCLAW_RUNTIME_PROVIDER as RuntimeProvider)
         : detectRuntimeProvider(),
     runtime_dir: resolve(PROJECT_ROOT, runtimeDir),
@@ -119,9 +119,7 @@ export function ensureSettingsRow(db: Database): void {
 
 export function getSettingsRow(db: Database): SettingsRow {
   ensureSettingsRow(db);
-  return db
-    .query<SettingsRow, number>("SELECT * FROM settings WHERE id = ?")
-    .get(1) as SettingsRow;
+  return db.query<SettingsRow, number>("SELECT * FROM settings WHERE id = ?").get(1) as SettingsRow;
 }
 
 export function isRuntimeProvider(value: string): value is RuntimeProvider {

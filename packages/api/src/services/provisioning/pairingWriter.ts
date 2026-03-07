@@ -25,7 +25,7 @@ export function deriveDeviceId(publicKeyBase64Url: string): string | null {
     // 若传入的是完整 SPKI DER（44 字节），剥离前缀后取原始 32 字节
     const keyBytes =
       raw.length === ED25519_SPKI_PREFIX.length + 32 &&
-        raw.subarray(0, ED25519_SPKI_PREFIX.length).equals(ED25519_SPKI_PREFIX)
+      raw.subarray(0, ED25519_SPKI_PREFIX.length).equals(ED25519_SPKI_PREFIX)
         ? raw.subarray(ED25519_SPKI_PREFIX.length)
         : raw;
     // ed25519 原始公钥必须为 32 字节，否则视为无效输入
