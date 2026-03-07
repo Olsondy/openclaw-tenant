@@ -45,7 +45,7 @@ function ensureLicenseColumns(db: Database): void {
     ["runtime_dir", "TEXT"],
     ["data_dir", "TEXT"],
     ["token_expires_at", "TEXT"],
-    ["token_ttl_days", "INTEGER DEFAULT 30"],
+    ["token_ttl_days", "INTEGER DEFAULT 7"],
     ["exec_public_key", "TEXT"],
   ];
 

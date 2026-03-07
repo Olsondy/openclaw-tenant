@@ -134,7 +134,7 @@ verify.post("/", async (c) => {
   } else {
     // 已过期或首次 verify：轮换 gateway_token
     gatewayToken = randomBytes(32).toString("hex");
-    const ttlDays = license.token_ttl_days ?? 30;
+    const ttlDays = license.token_ttl_days ?? 7;
     const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
     // 先写文件，再更新 DB（写文件失败不影响 DB 记录）

@@ -28,7 +28,7 @@ export const SCHEMA_SQL = `
     runtime_dir          TEXT,
     data_dir             TEXT,
     token_expires_at     TEXT,
-    token_ttl_days       INTEGER DEFAULT 30,
+    token_ttl_days       INTEGER DEFAULT 7,
     exec_public_key      TEXT,
     wizard_feishu_done   INTEGER NOT NULL DEFAULT 0
   );

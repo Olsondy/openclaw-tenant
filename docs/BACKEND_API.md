@@ -41,14 +41,14 @@
 {
   "ownerTag": "optional-string",
   "expiryDate": "YYYY-MM-DD",
-  "tokenTtlDays": 30,
+  "tokenTtlDays": 7,
   "hostIp": "192.168.1.100",
   "baseDomain": "openclaw.example.com"
 }
 ```
 
 - `expiryDate`: License 本身失效日期，留空 = 永久。
-- `tokenTtlDays`: Auth Token 有效期（天），默认 30，每次 verify 过期后自动轮换。
+- `tokenTtlDays`: Auth Token 有效期（天），默认 7，每次 verify 过期后自动轮换。
 - `hostIp`: 覆盖本次创建的宿主机 IP，留空取 `settings.host_ip`。
 - `baseDomain`: 覆盖本次创建的域名基准，留空取 `settings.base_domain`；若最终存在域名，会写入并冻结到 `licenses.nginx_host`。
 
@@ -147,7 +147,7 @@
 - Gateway Token 轮换字段：
   - `gateway_token`: 用于 wss 连接的 token，verify 时自动轮换
   - `token_expires_at`: token 过期时间（ISO 8601）
-  - `token_ttl_days`: token 轮换周期（天），创建 license 时指定，默认 30
+  - `token_ttl_days`: token 轮换周期（天），创建 license 时指定，默认 7
 - Settings stores global defaults for future licenses; each created license keeps its own effective snapshot.
 
 ## Middleware Contract
