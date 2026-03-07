@@ -1,10 +1,21 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
 
 const originalSpawn = Bun.spawn;
+const tempDirs: string[] = [];
 
-afterEach(() => {
+afterEach(async () => {
   (Bun as any).spawn = originalSpawn;
+  for (const dir of tempDirs.splice(0)) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup for transient Windows file locks.
+    }
+  }
 });
 
 function makeSpawnStub(
@@ -23,35 +34,49 @@ function makeSpawnStub(
   };
 }
 
+async function createRunnerFixture(scriptBody: string) {
+  const runtimeDir = await mkdtemp(join(tmpdir(), "openclaw-script-runner-"));
+  tempDirs.push(runtimeDir);
+  const configDir = join(runtimeDir, "cfg");
+  const workspaceDir = join(runtimeDir, "ws");
+  const scriptPath = join(runtimeDir, "setup.sh");
+  await mkdir(configDir, { recursive: true });
+  await mkdir(workspaceDir, { recursive: true });
+  await writeFile(scriptPath, scriptBody, "utf8");
+  return { runtimeDir, configDir, workspaceDir, scriptPath };
+}
+
 describe("runProvisionScript", () => {
   test("resolves when script exits 0", async () => {
-    (Bun as any).spawn = makeSpawnStub(0);
+    const fixture = await createRunnerFixture("#!/usr/bin/env bash\nexit 0\n");
     await expect(
       runProvisionScript({
-        runtimeDir: "/tmp",
-        configDir: "/tmp/cfg",
-        workspaceDir: "/tmp/ws",
+        runtimeDir: fixture.runtimeDir,
+        configDir: fixture.configDir,
+        workspaceDir: fixture.workspaceDir,
         composeProject: "openclaw-test-1",
         gatewayPort: 18789,
         bridgePort: 28789,
         gatewayToken: "tok",
-        provisionScript: "/tmp/setup.sh",
+        provisionScript: fixture.scriptPath,
       }),
     ).resolves.toBeUndefined();
   });
 
   test("throws when script exits non-zero", async () => {
-    (Bun as any).spawn = makeSpawnStub(1, "", "docker error");
+    const fixture = await createRunnerFixture(
+      "#!/usr/bin/env bash\necho 'docker error' >&2\nexit 1\n",
+    );
     await expect(
       runProvisionScript({
-        runtimeDir: "/tmp",
-        configDir: "/tmp/cfg",
-        workspaceDir: "/tmp/ws",
+        runtimeDir: fixture.runtimeDir,
+        configDir: fixture.configDir,
+        workspaceDir: fixture.workspaceDir,
         composeProject: "openclaw-test-1",
         gatewayPort: 18789,
         bridgePort: 28789,
         gatewayToken: "tok",
-        provisionScript: "/tmp/setup.sh",
+        provisionScript: fixture.scriptPath,
       }),
     ).rejects.toThrow("Provision script exited 1");
   });

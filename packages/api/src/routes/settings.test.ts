@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { sign } from "hono/jwt";
+import { resolve } from "path";
 import { resetDb } from "../db/client";
 import { jwtMiddleware } from "../middleware/jwt";
 import settingsRoutes from "./settings";
@@ -60,8 +61,8 @@ describe("GET /settings", () => {
 
     expect(body.success).toBe(true);
     expect(body.data.runtime_provider).toBe("docker");
-    expect(body.data.runtime_dir).toBe("/opt/openclaw-runtime");
-    expect(body.data.data_dir).toBe("/data/openclaw");
+    expect(body.data.runtime_dir).toBe(resolve("/opt/openclaw-runtime"));
+    expect(body.data.data_dir).toBe(resolve("/data/openclaw"));
     expect(body.data.host_ip).toBe("10.0.0.9");
     expect(body.data.base_domain).toBe("default.example.com");
     expect(body.data.gateway_port_start).toBe(19100);

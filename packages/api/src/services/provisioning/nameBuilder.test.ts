@@ -41,7 +41,7 @@ describe("buildConfigDir / buildWorkspaceDir", () => {
       "/data/openclaw/openclaw-alice-1/.openclaw",
     );
     expect(buildWorkspaceDir("/data/openclaw", "openclaw-alice-1")).toBe(
-      "/data/openclaw/openclaw-alice-1/workspace",
+      "/data/openclaw/openclaw-alice-1/.openclaw/workspace",
     );
   });
 });

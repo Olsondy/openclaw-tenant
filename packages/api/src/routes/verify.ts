@@ -22,6 +22,7 @@ interface LicenseRow {
   expiry_date: string | null;
   provision_status: string | null;
   container_name: string | null;
+  webui_url: string | null;
 
   token_expires_at: string | null;
   token_ttl_days: number | null;
@@ -164,7 +165,6 @@ verify.post("/", async (c) => {
         agentId,
         deviceName,
         licenseId: license.id,
-        tenantUrl: process.env.TENANT_PUBLIC_URL ?? "",
       },
       userProfile: {
         licenseStatus: "Valid",

@@ -1,16 +1,121 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { rm } from "fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
+import { join } from "path";
 import { getDb, resetDb } from "../../db/client";
 import { enqueueLicenseProvisioning } from "./licenseProvisioningService";
 
-const originalSpawn = Bun.spawn;
+const tempDirs: string[] = [];
 
-afterEach(() => {
-  (Bun as any).spawn = originalSpawn;
+afterEach(async () => {
+  delete process.env.OPENCLAW_RUNTIME_CMD;
+  delete process.env.NGINX_CMD;
+  for (const dir of tempDirs.splice(0)) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup for transient Windows file locks.
+    }
+  }
 });
 
-function seedLicense(db: ReturnType<typeof getDb>) {
+async function createProvisionFixture(scriptBody: string) {
+  const runtimeDir = await mkdtemp(join(tmpdir(), "openclaw-runtime-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "openclaw-data-"));
+  tempDirs.push(runtimeDir, dataDir);
+  await writeFile(join(runtimeDir, "provision-docker.sh"), scriptBody, "utf8");
+  return { runtimeDir, dataDir };
+}
+
+async function createMockRuntimeCommand(): Promise<string> {
+  const binDir = await mkdtemp(join(tmpdir(), "openclaw-runtime-cmd-"));
+  tempDirs.push(binDir);
+
+  if (process.platform === "win32") {
+    const runtimeCmd = join(binDir, "runtime.cmd");
+    await writeFile(
+      runtimeCmd,
+      `@echo off
+if "%1"=="compose" (
+  if "%6"=="openclaw-gateway" (
+    echo abc123
+    exit /b 0
+  )
+)
+if "%1"=="inspect" (
+  echo /openclaw-test-1-gateway
+  exit /b 0
+)
+echo unsupported runtime args %* 1>&2
+exit /b 1
+`,
+      "utf8",
+    );
+    return runtimeCmd;
+  } else {
+    const runtimeCmd = join(binDir, "runtime");
+    await writeFile(
+      runtimeCmd,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "compose" ]]; then
+  echo "abc123"
+  exit 0
+fi
+if [[ "\${1:-}" == "inspect" ]]; then
+  echo "/openclaw-test-1-gateway"
+  exit 0
+fi
+echo "unsupported runtime args: $*" >&2
+exit 1
+`,
+      "utf8",
+    );
+    await chmod(runtimeCmd, 0o755);
+    return runtimeCmd;
+  }
+}
+
+async function createMockNginxCommand(): Promise<string> {
+  const binDir = await mkdtemp(join(tmpdir(), "openclaw-nginx-cmd-"));
+  tempDirs.push(binDir);
+
+  if (process.platform === "win32") {
+    const nginxCmd = join(binDir, "nginx.cmd");
+    await writeFile(
+      nginxCmd,
+      `@echo off
+if "%1"=="-t" exit /b 0
+if "%1"=="-s" if "%2"=="reload" exit /b 0
+echo unsupported nginx args %* 1>&2
+exit /b 1
+`,
+      "utf8",
+    );
+    return nginxCmd;
+  }
+
+  const nginxCmd = join(binDir, "nginx");
+  await writeFile(
+    nginxCmd,
+    `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "-t" ]]; then
+  exit 0
+fi
+if [[ "\${1:-}" == "-s" && "\${2:-}" == "reload" ]]; then
+  exit 0
+fi
+echo "unsupported nginx args: $*" >&2
+exit 1
+`,
+    "utf8",
+  );
+  await chmod(nginxCmd, 0o755);
+  return nginxCmd;
+}
+
+function seedLicense(db: ReturnType<typeof getDb>, runtimeDir: string, dataDir: string) {
   db.run(
     `INSERT INTO licenses
        (license_key, gateway_token, gateway_url, status, owner_tag,
@@ -18,11 +123,61 @@ function seedLicense(db: ReturnType<typeof getDb>) {
         runtime_provider, runtime_dir, data_dir, nginx_host)
      VALUES ('PROV-KEY-001', 'tok123', 'ws://127.0.0.1:18789', 'unbound',
              'test', 'openclaw-test-1', 18789, 28789, 'pending', 'http://127.0.0.1:18789',
-             'docker', '/tmp/runtime', '/tmp/data', NULL)`,
+             'docker', ?, ?, NULL)`,
+    [runtimeDir, dataDir],
   );
   return db
     .query<{ id: number }, string>("SELECT id FROM licenses WHERE license_key = ?")
     .get("PROV-KEY-001")!;
+}
+
+async function waitForProvisionTerminalState(
+  db: ReturnType<typeof getDb>,
+  id: number,
+): Promise<
+  | {
+      provision_status: string;
+      container_name?: string;
+      provision_error?: string;
+      gateway_url?: string;
+      webui_url?: string | null;
+    }
+  | undefined
+> {
+  for (let i = 0; i < 60; i++) {
+    const row = db
+      .query<
+        {
+          provision_status: string;
+          container_name: string | null;
+          provision_error: string | null;
+          gateway_url: string;
+          webui_url: string | null;
+        },
+        number
+      >(
+        "SELECT provision_status, container_name, provision_error, gateway_url, webui_url FROM licenses WHERE id=?",
+      )
+      .get(id);
+    if (row && (row.provision_status === "ready" || row.provision_status === "failed")) {
+      return row;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return db
+    .query<
+      {
+        provision_status: string;
+        container_name: string | null;
+        provision_error: string | null;
+        gateway_url: string;
+        webui_url: string | null;
+      },
+      number
+    >(
+      "SELECT provision_status, container_name, provision_error, gateway_url, webui_url FROM licenses WHERE id=?",
+    )
+    .get(id);
 }
 
 beforeEach(() => {
@@ -30,7 +185,9 @@ beforeEach(() => {
   process.env.DB_PATH = ":memory:";
   process.env.ADMIN_USER = "admin";
   process.env.ADMIN_PASS = "x";
+  delete process.env.OPENCLAW_RUNTIME_CMD;
   delete process.env.OPENCLAW_BASE_DOMAIN;
+  delete process.env.NGINX_CMD;
   delete process.env.NGINX_SITE_DIR;
   delete process.env.NGINX_RELOAD_CMD;
 });
@@ -38,91 +195,51 @@ beforeEach(() => {
 describe("enqueueLicenseProvisioning", () => {
   test("sets provision_status to ready on success", async () => {
     const db = getDb();
-    const { id } = seedLicense(db);
-
-    let callIdx = 0;
-    (Bun as any).spawn = () => {
-      const outputs = ["", "abc123\n", "/openclaw-test-1-gateway\n"];
-      const out = outputs[callIdx] ?? "";
-      callIdx++;
-      return {
-        exited: Promise.resolve(0),
-        stdout: out,
-        stderr: "",
-      };
-    };
+    const { runtimeDir, dataDir } = await createProvisionFixture("#!/usr/bin/env bash\nexit 0\n");
+    process.env.OPENCLAW_RUNTIME_CMD = await createMockRuntimeCommand();
+    const { id } = seedLicense(db, runtimeDir, dataDir);
 
     enqueueLicenseProvisioning(id);
-    await new Promise((r) => setTimeout(r, 100));
-
-    const row = db
-      .query<{ provision_status: string; container_name: string }, number>(
-        "SELECT provision_status, container_name FROM licenses WHERE id=?",
-      )
-      .get(id);
+    const row = await waitForProvisionTerminalState(db, id);
     expect(row?.provision_status).toBe("ready");
     expect(row?.container_name).toBe("openclaw-test-1-gateway");
   });
 
   test("sets provision_status to failed when script fails", async () => {
     const db = getDb();
-    const { id } = seedLicense(db);
-
-    (Bun as any).spawn = () => ({
-      exited: Promise.resolve(1),
-      stdout: "",
-      stderr: "docker error",
-    });
+    const { runtimeDir, dataDir } = await createProvisionFixture(
+      "#!/usr/bin/env bash\necho 'docker error' >&2\nexit 1\n",
+    );
+    const { id } = seedLicense(db, runtimeDir, dataDir);
 
     enqueueLicenseProvisioning(id);
-    await new Promise((r) => setTimeout(r, 100));
-
-    const row = db
-      .query<{ provision_status: string; provision_error: string }, number>(
-        "SELECT provision_status, provision_error FROM licenses WHERE id=?",
-      )
-      .get(id);
+    const row = await waitForProvisionTerminalState(db, id);
     expect(row?.provision_status).toBe("failed");
     expect(row?.provision_error).toContain("Provision script exited 1");
   });
 
   test("uses license nginx_host for nginx config and final URLs", async () => {
     const db = getDb();
-    const { id } = seedLicense(db);
+    const { runtimeDir, dataDir } = await createProvisionFixture("#!/usr/bin/env bash\nexit 0\n");
+    process.env.OPENCLAW_RUNTIME_CMD = await createMockRuntimeCommand();
+    const { id } = seedLicense(db, runtimeDir, dataDir);
     db.run("UPDATE licenses SET nginx_host=? WHERE id=?", ["demo-1.example.com", id]);
 
-    const siteDir = `${tmpdir()}/nginx-site-${Date.now()}`;
+    const siteDir = join(tmpdir(), `nginx-site-${Date.now()}`);
+    tempDirs.push(siteDir);
+    const nginxCmd = await createMockNginxCommand();
+    process.env.NGINX_CMD = nginxCmd;
     process.env.NGINX_SITE_DIR = siteDir;
-    process.env.NGINX_RELOAD_CMD = "nginx -s reload";
-
-    let callIdx = 0;
-    (Bun as any).spawn = () => {
-      // 1: provision script, 2: docker compose ps, 3: docker inspect, 4: nginx -t, 5: nginx reload
-      const outputs = ["", "abc123\n", "/openclaw-test-1-gateway\n", "", ""];
-      const out = outputs[callIdx] ?? "";
-      callIdx++;
-      return {
-        exited: Promise.resolve(0),
-        stdout: out,
-        stderr: "",
-      };
-    };
+    process.env.NGINX_RELOAD_CMD = `${nginxCmd} -s reload`;
 
     enqueueLicenseProvisioning(id);
-    await new Promise((r) => setTimeout(r, 120));
-
-    const row = db
-      .query<{ gateway_url: string; webui_url: string | null }, number>(
-        "SELECT gateway_url, webui_url FROM licenses WHERE id=?",
-      )
-      .get(id);
+    const row = await waitForProvisionTerminalState(db, id);
+    expect(row?.provision_status).toBe("ready");
     expect(row?.gateway_url).toBe("wss://demo-1.example.com");
     expect(row?.webui_url).toBe("https://demo-1.example.com");
 
-    const nginxConf = await Bun.file(`${siteDir}/openclaw-test-1.conf`).text();
+    const nginxConf = await Bun.file(join(siteDir, "openclaw-test-1.conf")).text();
     expect(nginxConf).toContain("server_name demo-1.example.com;");
     expect(nginxConf).toContain("proxy_pass http://127.0.0.1:18789;");
-
-    await rm(siteDir, { recursive: true, force: true });
   });
 });

@@ -110,8 +110,7 @@
       "gatewayToken": "64-char-hex",
       "agentId": "16-char-hex",
       "deviceName": "...",
-      "licenseId": 1,
-      "tenantUrl": "https://..."
+      "licenseId": 1
     },
     "userProfile": {
       "licenseStatus": "Valid",

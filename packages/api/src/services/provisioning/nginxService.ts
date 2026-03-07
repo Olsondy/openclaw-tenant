@@ -29,7 +29,8 @@ export async function writeNginxConfig(
   const configPath = join(siteDir, `${composeProject}.conf`);
   await Bun.write(configPath, buildNginxConfig(host, gatewayPort));
 
-  const testProc = Bun.spawn(["nginx", "-t"], { stdout: "pipe", stderr: "pipe" });
+  const nginxCmd = process.env.NGINX_CMD?.trim() || "nginx";
+  const testProc = Bun.spawn([nginxCmd, "-t"], { stdout: "pipe", stderr: "pipe" });
   const testExit = await testProc.exited;
   if (testExit !== 0) {
     const err = await new Response(testProc.stderr).text();

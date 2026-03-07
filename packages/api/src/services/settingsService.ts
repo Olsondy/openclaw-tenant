@@ -144,6 +144,8 @@ export function resolveProvisionScriptPath(provider: RuntimeProvider, runtimeDir
   return join(runtimeDir, provider === "docker" ? "docker-setup.sh" : "setup-podman.sh");
 }
 
-export function resolveRuntimeCommand(provider: RuntimeProvider): "docker" | "podman" {
+export function resolveRuntimeCommand(provider: RuntimeProvider): string {
+  const override = process.env.OPENCLAW_RUNTIME_CMD?.trim();
+  if (override) return override;
   return provider === "podman" ? "podman" : "docker";
 }

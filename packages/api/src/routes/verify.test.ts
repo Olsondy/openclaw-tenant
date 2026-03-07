@@ -16,11 +16,12 @@ function post(body: object) {
 
 function seedLicense(status = "unbound", hwid: string | null = null) {
   const db = getDb();
+  const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   db.run(
     `INSERT INTO licenses
-       (license_key, gateway_token, gateway_url, status, hwid, agent_id, provision_status)
-     VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', ?, ?, ?, 'ready')`,
-    [status, hwid, hwid ? "abcdef1234567890" : null],
+       (license_key, gateway_token, gateway_url, status, hwid, agent_id, provision_status, token_expires_at)
+     VALUES ('AAAAA-BBBBB-CCCCC-DDDDD', 'tok', 'ws://gw:18789', ?, ?, ?, 'ready', ?)`,
+    [status, hwid, hwid ? "abcdef1234567890" : null, tokenExpiresAt],
   );
 }
 
