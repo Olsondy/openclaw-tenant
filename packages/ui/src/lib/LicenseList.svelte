@@ -1,165 +1,192 @@
 <script lang="ts">
-import { api, clearToken, type License, type RuntimeProvider, type Settings } from "./api";
+  import { api, clearToken, type License, type RuntimeProvider, type Settings } from './api'
 
-interface Props {
-  onLogout: () => void;
-}
-let { onLogout }: Props = $props();
-
-let licenses = $state<License[]>([]);
-let loading = $state(true);
-let generating = $state(false);
-let settingsLoading = $state(true);
-let savingSettings = $state(false);
-let error = $state("");
-let settings = $state<Settings | null>(null);
-let healthStatus = $state<Record<number, boolean>>({});
-let healthTimer: ReturnType<typeof setInterval> | null = null;
-
-// 弹窗状态
-let showModal = $state(false);
-let showSettingsModal = $state(false);
-// 表单字段
-let formOwnerTag = $state("");
-let formExpiryDate = $state(""); // 留空 = 永久
-let formTokenTtlDays = $state(7);
-let formHostIp = $state(""); // 留空 = 服务器默认
-let formBaseDomain = $state(""); // 留空 = 使用全局 settings.base_domain
-
-// Settings 表单字段
-let settingsRuntimeProvider = $state<RuntimeProvider>("docker");
-let settingsRuntimeDir = $state("");
-let settingsDataDir = $state("");
-let settingsHostIp = $state("");
-let settingsBaseDomain = $state("");
-let settingsGatewayPortStart = $state(18789);
-let settingsGatewayPortEnd = $state(18999);
-let settingsBridgePortStart = $state(28789);
-let settingsBridgePortEnd = $state(28999);
-
-const STATUS = {
-  unbound: { label: "待激活", cls: "bg-gray-100 text-gray-600" },
-  active: { label: "已激活", cls: "bg-green-100 text-green-700" },
-  revoked: { label: "已注销", cls: "bg-red-100 text-red-600" },
-} as const;
-
-function applySettingsToForm(row: Settings) {
-  settingsRuntimeProvider = row.runtime_provider;
-  settingsRuntimeDir = row.runtime_dir;
-  settingsDataDir = row.data_dir;
-  settingsHostIp = row.host_ip;
-  settingsBaseDomain = row.base_domain ?? "";
-  settingsGatewayPortStart = row.gateway_port_start;
-  settingsGatewayPortEnd = row.gateway_port_end;
-  settingsBridgePortStart = row.bridge_port_start;
-  settingsBridgePortEnd = row.bridge_port_end;
-}
-
-async function load() {
-  try {
-    const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()]);
-    licenses = licenseRes.data;
-    settings = settingsRes.data;
-    applySettingsToForm(settingsRes.data);
-  } catch (e) {
-    error = e instanceof Error ? e.message : "加载失败";
-  } finally {
-    loading = false;
-    settingsLoading = false;
+  interface Props {
+    onLogout: () => void
   }
-}
+  let { onLogout }: Props = $props()
 
-function openModal() {
-  formOwnerTag = "";
-  formExpiryDate = "";
-  formTokenTtlDays = 7;
-  formHostIp = settings?.host_ip ?? "";
-  formBaseDomain = "";
-  showModal = true;
-}
+  let licenses = $state<License[]>([])
+  let loading = $state(true)
+  let generating = $state(false)
+  let settingsLoading = $state(true)
+  let savingSettings = $state(false)
+  let error = $state('')
+  let settings = $state<Settings | null>(null)
+  let healthStatus = $state<Record<number, boolean>>({})
+  let healthTimer: ReturnType<typeof setInterval> | null = null
 
-function openSettings() {
-  if (settings) applySettingsToForm(settings);
-  showSettingsModal = true;
-}
+  // 弹窗状态
+  let showModal = $state(false)
+  let showSettingsModal = $state(false)
+  // 表单字段
+  let formOwnerTag = $state('')
+  let formExpiryDate = $state('') // 留空 = 永久
+  let formTokenTtlDays = $state(7)
+  let formHostIp = $state('') // 留空 = 服务器默认
+  let formBaseDomain = $state('') // 留空 = 使用全局 settings.base_domain
 
-async function saveSettings() {
-  savingSettings = true;
-  try {
-    const res = await api.updateSettings({
-      runtime_provider: settingsRuntimeProvider,
-      runtime_dir: settingsRuntimeDir.trim(),
-      data_dir: settingsDataDir.trim(),
-      host_ip: settingsHostIp.trim(),
-      base_domain: settingsBaseDomain.trim() || null,
-      gateway_port_start: Number(settingsGatewayPortStart),
-      gateway_port_end: Number(settingsGatewayPortEnd),
-      bridge_port_start: Number(settingsBridgePortStart),
-      bridge_port_end: Number(settingsBridgePortEnd),
-    });
-    settings = res.data;
-    applySettingsToForm(res.data);
-    showSettingsModal = false;
-  } catch (e) {
-    error = e instanceof Error ? e.message : "保存设置失败";
-  } finally {
-    savingSettings = false;
+  // Settings 表单字段
+  let settingsRuntimeProvider = $state<RuntimeProvider>('docker')
+  let settingsRuntimeDir = $state('')
+  let settingsDataDir = $state('')
+  let settingsHostIp = $state('')
+  let settingsBaseDomain = $state('')
+  let settingsGatewayPortStart = $state(18789)
+  let settingsGatewayPortEnd = $state(18999)
+  let settingsBridgePortStart = $state(28789)
+  let settingsBridgePortEnd = $state(28999)
+
+  const STATUS = {
+    unbound: { label: '待激活', cls: 'bg-gray-100 text-gray-600' },
+    active: { label: '已激活', cls: 'bg-green-100 text-green-700' },
+    revoked: { label: '已注销', cls: 'bg-red-100 text-red-600' },
+  } as const
+
+  function applySettingsToForm(row: Settings) {
+    settingsRuntimeProvider = row.runtime_provider
+    settingsRuntimeDir = row.runtime_dir
+    settingsDataDir = row.data_dir
+    settingsHostIp = row.host_ip
+    settingsBaseDomain = row.base_domain ?? ''
+    settingsGatewayPortStart = row.gateway_port_start
+    settingsGatewayPortEnd = row.gateway_port_end
+    settingsBridgePortStart = row.bridge_port_start
+    settingsBridgePortEnd = row.bridge_port_end
   }
-}
 
-async function generate() {
-  generating = true;
-  try {
-    const opts: Parameters<typeof api.generateLicense>[0] = {};
-    if (formOwnerTag) opts.ownerTag = formOwnerTag;
-    if (formExpiryDate) opts.expiryDate = formExpiryDate;
-    if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays;
-    if (formHostIp) opts.hostIp = formHostIp;
-    if (formBaseDomain) opts.baseDomain = formBaseDomain;
-
-    const res = await api.generateLicense(opts);
-    licenses = [res.data, ...licenses];
-    showModal = false;
-  } catch (e) {
-    error = e instanceof Error ? e.message : "生成失败";
-  } finally {
-    generating = false;
+  async function load() {
+    try {
+      const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()])
+      licenses = licenseRes.data
+      settings = settingsRes.data
+      applySettingsToForm(settingsRes.data)
+    } catch (e) {
+      error = e instanceof Error ? e.message : '加载失败'
+    } finally {
+      loading = false
+      settingsLoading = false
+    }
   }
-}
 
-async function revoke(license: License) {
-  if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return;
-  try {
-    await api.revokeLicense(license.id);
-    licenses = licenses.map((l) =>
-      l.id === license.id ? { ...l, status: "revoked" as const } : l,
-    );
-  } catch (e) {
-    error = e instanceof Error ? e.message : "撤销失败";
+  function openModal() {
+    formOwnerTag = ''
+    formExpiryDate = ''
+    formTokenTtlDays = 7
+    formHostIp = settings?.host_ip ?? ''
+    formBaseDomain = ''
+    showModal = true
   }
-}
 
-function logout() {
-  clearToken();
-  onLogout();
-}
-
-async function pollHealth() {
-  try {
-    const res = await api.getHealth();
-    healthStatus = res.data;
-  } catch {
-    // ignore health poll errors
+  function openSettings() {
+    if (settings) applySettingsToForm(settings)
+    showSettingsModal = true
   }
-}
 
-$effect(() => {
-  load().then(() => pollHealth());
-  healthTimer = setInterval(pollHealth, 30_000);
-  return () => {
-    if (healthTimer) clearInterval(healthTimer);
-  };
-});
+  async function saveSettings() {
+    savingSettings = true
+    try {
+      const res = await api.updateSettings({
+        runtime_provider: settingsRuntimeProvider,
+        runtime_dir: settingsRuntimeDir.trim(),
+        data_dir: settingsDataDir.trim(),
+        host_ip: settingsHostIp.trim(),
+        base_domain: settingsBaseDomain.trim() || null,
+        gateway_port_start: Number(settingsGatewayPortStart),
+        gateway_port_end: Number(settingsGatewayPortEnd),
+        bridge_port_start: Number(settingsBridgePortStart),
+        bridge_port_end: Number(settingsBridgePortEnd),
+      })
+      settings = res.data
+      applySettingsToForm(res.data)
+      showSettingsModal = false
+    } catch (e) {
+      error = e instanceof Error ? e.message : '保存设置失败'
+    } finally {
+      savingSettings = false
+    }
+  }
+
+  async function generate() {
+    generating = true
+    try {
+      const opts: Parameters<typeof api.generateLicense>[0] = {}
+      if (formOwnerTag) opts.ownerTag = formOwnerTag
+      if (formExpiryDate) opts.expiryDate = formExpiryDate
+      if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays
+      if (formHostIp) opts.hostIp = formHostIp
+      if (formBaseDomain) opts.baseDomain = formBaseDomain
+
+      await api.generateLicense(opts)
+      // 重新从服务端拉取，确保列表与数据库完全对齐
+      await load()
+      await pollHealth()
+      showModal = false
+    } catch (e) {
+      error = e instanceof Error ? e.message : '生成失败'
+    } finally {
+      generating = false
+    }
+  }
+
+  async function revoke(license: License) {
+    if (!confirm(`确认撤销 ${license.license_key}？此操作不可恢复。`)) return
+    try {
+      await api.revokeLicense(license.id)
+      licenses = licenses.map((l) => (l.id === license.id ? { ...l, status: 'revoked' as const } : l))
+    } catch (e) {
+      error = e instanceof Error ? e.message : '撤销失败'
+    }
+  }
+
+  function logout() {
+    clearToken()
+    onLogout()
+  }
+
+  async function pollHealth() {
+    try {
+      const res = await api.getHealth()
+      healthStatus = res.data
+    } catch {
+      // ignore health poll errors
+    }
+  }
+
+  let pendingTimer: ReturnType<typeof setInterval> | null = null
+  async function pollPending() {
+    const hasPending = licenses.some((l) => l.provision_status === 'pending' || l.provision_status === 'running')
+    if (!hasPending) {
+      if (pendingTimer) {
+        clearInterval(pendingTimer)
+        pendingTimer = null
+      }
+      return
+    }
+    try {
+      await load()
+      await pollHealth()
+    } catch {
+      // ignore
+    }
+  }
+
+  $effect(() => {
+    load().then(() => pollHealth())
+    healthTimer = setInterval(pollHealth, 30_000)
+    return () => {
+      if (healthTimer) clearInterval(healthTimer)
+      if (pendingTimer) clearInterval(pendingTimer)
+    }
+  })
+
+  // 当列表变动且存在未完成节点时启发式启动短轮询
+  $effect(() => {
+    const hasPending = licenses.some((l) => l.provision_status === 'pending' || l.provision_status === 'running')
+    if (hasPending && !pendingTimer) {
+      pendingTimer = setInterval(pollPending, 3_000)
+    }
+  })
 </script>
 
 <div class="min-h-screen bg-slate-50 font-sans selection:bg-blue-200">
