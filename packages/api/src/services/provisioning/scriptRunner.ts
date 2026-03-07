@@ -1,6 +1,6 @@
 import { execSync, spawn as nodeSpawn } from "child_process";
 import { existsSync } from "fs";
-import { resolveRuntimeCommand, type RuntimeProvider } from "../settingsService";
+import { type RuntimeProvider, resolveRuntimeCommand } from "../settingsService";
 
 export interface ScriptRunnerOptions {
   runtimeDir: string;

@@ -124,4 +124,3 @@ describe("PUT /settings", () => {
     expect(body.error).toBe("INVALID_PORT_RANGE");
   });
 });
-
