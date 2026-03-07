@@ -7,16 +7,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@openclaw/api/*": [
-        "packages/api/src/*"
-      ],
-      "@openclaw/ui/*": [
-        "packages/ui/src/*"
-      ]
+      "@openclaw/api/*": ["packages/api/src/*"],
+      "@openclaw/ui/*": ["packages/ui/src/*"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "exclude": ["node_modules", "dist"]
 }
