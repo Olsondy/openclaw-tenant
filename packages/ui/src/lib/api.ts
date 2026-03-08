@@ -59,6 +59,19 @@ export interface License {
   token_ttl_days: number | null;
 }
 
+export interface ModelPreset {
+  id: number;
+  provider_id: string;
+  label: string;
+  base_url: string;
+  api: string;
+  model_id: string;
+  model_name: string;
+  api_key_masked: boolean;
+  enabled: boolean;
+  updated_at: string;
+}
+
 export type RuntimeProvider = "docker" | "podman";
 
 export interface Settings {
@@ -90,6 +103,14 @@ export const api = {
     tokenTtlDays?: number;
     hostIp?: string;
     baseDomain?: string;
+    providerId?: string;
+    providerLabel?: string;
+    baseUrl?: string;
+    api?: string;
+    modelId?: string;
+    modelName?: string;
+    apiKeySource?: "preset" | "custom";
+    apiKey?: string;
   }) =>
     request<{ success: boolean; data: License }>("/licenses", {
       method: "POST",
@@ -109,6 +130,9 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  getModelPresets: () =>
+    request<{ success: boolean; data: ModelPreset[] }>("/settings/model-presets"),
 
   /** Batch health check: returns { [licenseId]: boolean } */
   getHealth: () => request<{ success: boolean; data: Record<number, boolean> }>("/licenses/health"),

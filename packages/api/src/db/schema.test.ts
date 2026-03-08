@@ -80,11 +80,25 @@ describe("ensureLicenseColumns", () => {
       "runtime_provider",
       "runtime_dir",
       "data_dir",
+      "provider_id",
+      "provider_label",
+      "base_url",
+      "api",
+      "model_id",
+      "model_name",
+      "api_key_enc",
     ];
 
     for (const col of expectedColumns) {
       expect(columnNames).toContain(col);
     }
+  });
+
+  test("model_presets table has model_name column", () => {
+    const db = getDb();
+    const rows = db.query("PRAGMA table_info(model_presets)").all() as Array<{ name: string }>;
+    const columnNames = rows.map((r) => r.name);
+    expect(columnNames).toContain("model_name");
   });
 
   test("initializes default settings row", () => {

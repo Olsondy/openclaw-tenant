@@ -8,7 +8,7 @@ import { deriveDeviceId, writePairedJson, writePairingIfReady } from "./pairingW
 // ─── 辅助函数 ──────────────────────────────────────────────────────────────────
 
 /** 已知输入 → 已知 deviceId，用于验证算法一致性 */
-const KNOWN_PUBLIC_KEY_BASE64URL =
+const _KNOWN_PUBLIC_KEY_BASE64URL =
   // ed25519 原始公钥 32 字节，以 base64url 编码
   "MCowBQYDK2VdAyEA";
 // 注：此处使用一个固定测试密钥，在实际断言中以动态生成替代

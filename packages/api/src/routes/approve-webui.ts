@@ -84,8 +84,8 @@ async function approveWebuiDevices(configDir: string): Promise<string[]> {
   }
 
   if (approved.length > 0) {
-    await writeFile(pairedPath, JSON.stringify(paired, null, 2) + "\n");
-    await writeFile(pendingPath, JSON.stringify(pending, null, 2) + "\n");
+    await writeFile(pairedPath, `${JSON.stringify(paired, null, 2)}\n`);
+    await writeFile(pendingPath, `${JSON.stringify(pending, null, 2)}\n`);
   }
 
   return approved;

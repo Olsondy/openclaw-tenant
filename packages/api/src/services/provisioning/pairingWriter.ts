@@ -103,7 +103,7 @@ export async function writePairedJson(
   };
 
   existing[deviceId] = entry;
-  await writeFile(pairedPath, JSON.stringify(existing, null, 2) + "\n", {
+  await writeFile(pairedPath, `${JSON.stringify(existing, null, 2)}\n`, {
     mode: 0o600,
   });
 }

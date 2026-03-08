@@ -29,6 +29,29 @@ For full multi-module deployment and interaction architecture, see parent repo R
 
 ---
 
+## 🆕 Recent Update (Model Snapshot + Bootstrap Merge)
+
+- **License creation is now model-snapshot driven**:
+  - `licenses` stores: `provider_id/provider_label/base_url/api/model_id/model_name/api_key_enc`
+  - Provisioning and file writes use the license snapshot only (no runtime `model_presets` dependency)
+- **`model_presets` now has full CRUD**:
+  - Create / update / delete are supported
+  - `provider_id` is immutable once created
+  - Create requires API key
+  - Update keeps existing key when API key is submitted as empty string
+- **Provisioning now writes three model-related files**:
+  - `.openclaw/openclaw.json`
+  - `.openclaw/agents/main/agent/auth-profiles.json`
+  - `.openclaw/agents/main/agent/models.json`
+  - After writes: `exec --user root` permission fix + container restart; restart failure marks `provision_status=failed`
+- **`POST /api/licenses/:id/bootstrap-config` now supports `modelAuth`**:
+  - Can be submitted together with `feishu`
+  - `models.json` merge rule: replace same `model.id`, append different ids, keep other providers intact
+  - Also updates provider `baseUrl/api/apiKey` and syncs `openclaw.json` default primary model
+  - Runs `chown + restart`; restart failure returns API error
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Prerequisites

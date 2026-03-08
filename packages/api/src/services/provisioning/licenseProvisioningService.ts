@@ -1,12 +1,13 @@
 import { readFile } from "fs/promises";
 import { join, resolve } from "path";
 import { getDb } from "../../db/client";
+import { decryptApiKey } from "../crypto";
 import { type RuntimeProvider, resolveProvisionScriptPath } from "../settingsService";
 import { buildConfigDir, buildWorkspaceDir } from "./nameBuilder";
 import { writeNginxConfig } from "./nginxService";
 import { writePairingIfReady } from "./pairingWriter";
-import { patchModelApiKey } from "./patchModelApiKey";
 import { getContainerId, getContainerName, runProvisionScript } from "./scriptRunner";
+import { applyModelConfigAndRestart } from "./writeAgentApiKey";
 
 const activeJobs = new Map<number, Promise<void>>();
 
@@ -53,11 +54,20 @@ async function runProvisioning(licenseId: number): Promise<void> {
           runtime_dir: string | null;
           data_dir: string | null;
           nginx_host: string | null;
+          provider_id: string | null;
+          provider_label: string | null;
+          base_url: string | null;
+          api: string | null;
+          model_id: string | null;
+          model_name: string | null;
+          api_key_enc: string | null;
         },
         number
       >(
         `SELECT compose_project, gateway_port, bridge_port, gateway_token, owner_tag,
-                gateway_url, webui_url, runtime_provider, runtime_dir, data_dir, nginx_host
+                gateway_url, webui_url, runtime_provider, runtime_dir, data_dir, nginx_host,
+                provider_id, provider_label, base_url, api, model_id, model_name,
+                api_key_enc
            FROM licenses WHERE id=?`,
       )
       .get(licenseId);
@@ -88,12 +98,38 @@ async function runProvisioning(licenseId: number): Promise<void> {
       provisionScript,
     });
 
-    // provision 完成后注入模型 apiKey 到 openclaw.json
-    const jwtSecret = process.env.JWT_SECRET ?? "";
-    await patchModelApiKey(configDir, jwtSecret);
-
     const containerId = await getContainerId(license.compose_project, runtimeProvider);
     const containerName = await getContainerName(containerId, runtimeProvider);
+
+    const jwtSecret = process.env.JWT_SECRET ?? "";
+    const apiKey = license.api_key_enc ? decryptApiKey(license.api_key_enc, jwtSecret) : "";
+
+    if (
+      !license.provider_id ||
+      !license.provider_label ||
+      !license.base_url ||
+      !license.api ||
+      !license.model_id ||
+      !license.model_name ||
+      !apiKey
+    ) {
+      throw new Error("LICENSE_MODEL_SNAPSHOT_INCOMPLETE");
+    }
+
+    await applyModelConfigAndRestart({
+      configDir,
+      containerName,
+      runtimeProvider,
+      modelAuth: {
+        providerId: license.provider_id,
+        providerLabel: license.provider_label,
+        baseUrl: license.base_url,
+        api: license.api,
+        modelId: license.model_id,
+        modelName: license.model_name,
+        apiKey,
+      },
+    });
 
     // 读取容器生成的 openclaw.json 校验 token
     let finalToken = license.gateway_token;

@@ -29,6 +29,29 @@
 
 ---
 
+## 🆕 最新补充（模型快照 + Bootstrap 合并）
+
+- **License 创建改为模型快照驱动**：
+  - `licenses` 固化字段：`provider_id/provider_label/base_url/api/model_id/model_name/api_key_enc`
+  - provision 与后续写文件都基于 license 快照，不再运行时读取 `model_presets`
+- **model_presets 完整 CRUD**：
+  - 支持新增/编辑/删除
+  - `provider_id` 新建后不可修改
+  - 新增必须提供 key
+  - 编辑时 key 为空字符串则保留原值
+- **provision 统一写三处模型配置**：
+  - `.openclaw/openclaw.json`
+  - `.openclaw/agents/main/agent/auth-profiles.json`
+  - `.openclaw/agents/main/agent/models.json`
+  - 写入后执行 `exec --user root` 修权限并重启容器，重启失败即 `provision_status=failed`
+- **`POST /api/licenses/:id/bootstrap-config` 扩展 `modelAuth`**：
+  - 可与 `feishu` 同请求
+  - `models.json` 规则：同 `model.id` 替换，不同 `id` 合并追加，其他 provider 保留
+  - 同步更新 provider 的 `baseUrl/api/apiKey`，并同步 `openclaw.json` 默认主模型
+  - 写入后执行 `chown + restart`，重启失败接口返回错误
+
+---
+
 ## 🚀 快速启动
 
 ### 1. 环境依赖

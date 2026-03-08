@@ -30,7 +30,14 @@ export const SCHEMA_SQL = `
     token_expires_at     TEXT,
     token_ttl_days       INTEGER DEFAULT 7,
     exec_public_key      TEXT,
-    wizard_feishu_done   INTEGER NOT NULL DEFAULT 0
+    wizard_feishu_done   INTEGER NOT NULL DEFAULT 0,
+    provider_id          TEXT,
+    provider_label       TEXT,
+    base_url             TEXT,
+    api                  TEXT,
+    model_id             TEXT,
+    model_name           TEXT,
+    api_key_enc          TEXT
   );
 
   CREATE TABLE IF NOT EXISTS admin_users (
@@ -60,15 +67,16 @@ export const SCHEMA_SQL = `
     base_url     TEXT NOT NULL,
     api          TEXT NOT NULL,
     model_id     TEXT NOT NULL,
+    model_name   TEXT NOT NULL DEFAULT '',
     api_key_enc  TEXT,
     enabled      INTEGER NOT NULL DEFAULT 1,
     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   INSERT OR IGNORE INTO model_presets
-    (provider_id, label, base_url, api, model_id, enabled)
+    (provider_id, label, base_url, api, model_id, model_name, enabled)
   VALUES
     ('zai', 'GLM-4.7 Flash (智谱AI)',
      'https://open.bigmodel.cn/api/paas/v4/',
-     'openai-completions', 'glm-4.7-flash', 1);
+     'openai-completions', 'glm-4.7-flash', 'GLM-4.7 Flash', 1);
 `;

@@ -1,5 +1,12 @@
 <script lang="ts">
-import { api, clearToken, type License, type RuntimeProvider, type Settings } from "./api";
+import {
+  api,
+  clearToken,
+  type License,
+  type ModelPreset,
+  type RuntimeProvider,
+  type Settings,
+} from "./api";
 
 interface Props {
   onLogout: () => void;
@@ -25,6 +32,16 @@ let formExpiryDate = $state(""); // 留空 = 永久
 let formTokenTtlDays = $state(7);
 let formHostIp = $state(""); // 留空 = 服务器默认
 let formBaseDomain = $state(""); // 留空 = 使用全局 settings.base_domain
+let formApiKey = $state("");
+let formApiKeySource = $state<"preset" | "custom">("custom");
+let modelPresets = $state<ModelPreset[]>([]);
+let enabledModelPresets = $derived(modelPresets.filter((p) => p.enabled));
+let formProviderId = $state("");
+let formProviderLabel = $state("");
+let formBaseUrl = $state("");
+let formApi = $state("");
+let formModelId = $state("");
+let formModelName = $state("");
 
 // Settings 表单字段
 let settingsRuntimeProvider = $state<RuntimeProvider>("docker");
@@ -57,9 +74,14 @@ function applySettingsToForm(row: Settings) {
 
 async function load() {
   try {
-    const [licenseRes, settingsRes] = await Promise.all([api.getLicenses(), api.getSettings()]);
+    const [licenseRes, settingsRes, presetsRes] = await Promise.all([
+      api.getLicenses(),
+      api.getSettings(),
+      api.getModelPresets(),
+    ]);
     licenses = licenseRes.data;
     settings = settingsRes.data;
+    modelPresets = presetsRes.data;
     applySettingsToForm(settingsRes.data);
   } catch (e) {
     error = e instanceof Error ? e.message : "加载失败";
@@ -69,12 +91,36 @@ async function load() {
   }
 }
 
+function applyPreset(providerId: string) {
+  const preset = enabledModelPresets.find((p) => p.provider_id === providerId);
+  if (!preset) return;
+  formProviderId = preset.provider_id;
+  formProviderLabel = preset.label;
+  formBaseUrl = preset.base_url;
+  formApi = preset.api;
+  formModelId = preset.model_id;
+  formModelName = preset.model_name;
+  formApiKeySource = preset.api_key_masked ? "preset" : "custom";
+}
+
 function openModal() {
   formOwnerTag = "";
   formExpiryDate = "";
   formTokenTtlDays = 7;
   formHostIp = settings?.host_ip ?? "";
   formBaseDomain = "";
+  formApiKey = "";
+  if (enabledModelPresets.length > 0) {
+    applyPreset(enabledModelPresets[0].provider_id);
+  } else {
+    formProviderId = "";
+    formProviderLabel = "";
+    formBaseUrl = "";
+    formApi = "openai-completions";
+    formModelId = "";
+    formModelName = "";
+    formApiKeySource = "custom";
+  }
   showModal = true;
 }
 
@@ -116,6 +162,21 @@ async function generate() {
     if (formTokenTtlDays !== 7) opts.tokenTtlDays = formTokenTtlDays;
     if (formHostIp) opts.hostIp = formHostIp;
     if (formBaseDomain) opts.baseDomain = formBaseDomain;
+    if (formProviderId) opts.providerId = formProviderId;
+
+    const preset = enabledModelPresets.find((p) => p.provider_id === formProviderId);
+    if (!preset) {
+      opts.providerLabel = formProviderLabel;
+      opts.baseUrl = formBaseUrl;
+      opts.api = formApi;
+      opts.modelId = formModelId;
+      opts.modelName = formModelName;
+    }
+
+    opts.apiKeySource = formApiKeySource;
+    if (formApiKeySource === "custom" && formApiKey) {
+      opts.apiKey = formApiKey;
+    }
 
     await api.generateLicense(opts);
     // 重新从服务端拉取，确保列表与数据库完全对齐
@@ -526,6 +587,132 @@ $effect(() => {
             class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
           />
         </div>
+
+        <!-- 模型配置 -->
+        {#if enabledModelPresets.length > 0}
+          <div>
+            <label for="formProviderId" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              模型供应商
+            </label>
+            <select
+              id="formProviderId"
+              bind:value={formProviderId}
+              onchange={() => applyPreset(formProviderId)}
+              class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
+            >
+              {#each enabledModelPresets as preset}
+                <option value={preset.provider_id}>{preset.label}</option>
+              {/each}
+            </select>
+          </div>
+        {:else}
+          <div>
+            <label for="formProviderId" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              模型供应商 ID
+            </label>
+            <input
+              id="formProviderId"
+              type="text"
+              bind:value={formProviderId}
+              placeholder="openai / zai / anthropic"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+          <div>
+            <label for="formProviderLabel" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              供应商名称
+            </label>
+            <input
+              id="formProviderLabel"
+              type="text"
+              bind:value={formProviderLabel}
+              placeholder="OpenAI"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+          <div>
+            <label for="formBaseUrl" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              Base URL
+            </label>
+            <input
+              id="formBaseUrl"
+              type="text"
+              bind:value={formBaseUrl}
+              placeholder="https://api.openai.com/v1"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400 font-mono"
+            />
+          </div>
+          <div>
+            <label for="formApi" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              API 协议
+            </label>
+            <input
+              id="formApi"
+              type="text"
+              bind:value={formApi}
+              placeholder="openai-completions"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="formModelId" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              模型 ID
+            </label>
+            <input
+              id="formModelId"
+              type="text"
+              bind:value={formModelId}
+              placeholder="glm-4.7-flash"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+          <div>
+            <label for="formModelName" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              模型名称
+            </label>
+            <input
+              id="formModelName"
+              type="text"
+              bind:value={formModelName}
+              placeholder="GLM-4.7 Flash"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label for="formApiKeySource" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+            API Key 来源
+          </label>
+          <select
+            id="formApiKeySource"
+            bind:value={formApiKeySource}
+            class="w-full rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all"
+          >
+            <option value="custom">手动输入</option>
+            {#if enabledModelPresets.find((p) => p.provider_id === formProviderId)?.api_key_masked}
+              <option value="preset">使用预置 Key</option>
+            {/if}
+          </select>
+        </div>
+
+        {#if formApiKeySource === 'custom'}
+          <div>
+            <label for="formApiKey" class="block text-[13px] font-semibold text-slate-700 mb-1.5">
+              模型 API Key
+            </label>
+            <input
+              id="formApiKey"
+              type="password"
+              bind:value={formApiKey}
+              placeholder="sk-..."
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm px-4 py-2.5 outline-none transition-all placeholder:text-slate-400 font-mono"
+            />
+          </div>
+        {/if}
 
         <!-- License 到期日 -->
         <div>

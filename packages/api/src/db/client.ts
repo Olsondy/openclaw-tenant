@@ -13,6 +13,7 @@ export function getDb(): Database {
   _db.run("PRAGMA journal_mode=WAL");
   _db.run(SCHEMA_SQL);
   ensureLicenseColumns(_db);
+  ensureModelPresetColumns(_db);
   ensureSettingsRow(_db);
   seedAdmin(_db);
   return _db;
@@ -47,6 +48,13 @@ function ensureLicenseColumns(db: Database): void {
     ["token_expires_at", "TEXT"],
     ["token_ttl_days", "INTEGER DEFAULT 7"],
     ["exec_public_key", "TEXT"],
+    ["provider_id", "TEXT"],
+    ["provider_label", "TEXT"],
+    ["base_url", "TEXT"],
+    ["api", "TEXT"],
+    ["model_id", "TEXT"],
+    ["model_name", "TEXT"],
+    ["api_key_enc", "TEXT"],
   ];
 
   for (const [colName, colDef] of newColumns) {
@@ -56,6 +64,24 @@ function ensureLicenseColumns(db: Database): void {
   }
 
   db.run("UPDATE licenses SET provision_status = 'ready' WHERE provision_status IS NULL");
+}
+
+function ensureModelPresetColumns(db: Database): void {
+  const rows = db.query("PRAGMA table_info(model_presets)").all() as Array<{ name: string }>;
+  const existingColumns = new Set(rows.map((r) => r.name));
+
+  const newColumns: Array<[string, string]> = [
+    ["model_name", "TEXT NOT NULL DEFAULT ''"],
+    ["api_key_enc", "TEXT"],
+  ];
+
+  for (const [colName, colDef] of newColumns) {
+    if (!existingColumns.has(colName)) {
+      db.run(`ALTER TABLE model_presets ADD COLUMN ${colName} ${colDef}`);
+    }
+  }
+
+  db.run("UPDATE model_presets SET model_name=model_id WHERE model_name IS NULL OR model_name=''");
 }
 
 function seedAdmin(db: Database): void {
