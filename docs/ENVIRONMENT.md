@@ -21,6 +21,8 @@ Runtime environment contract for API/UI startup and provisioning operations.
 | `OPENCLAW_DATA_DIR` | - | **Yes** | Instance data root dir (per-license config/workspace parent) |
 | `OPENCLAW_RUNTIME_DIR` | - | **Yes** | Directory containing docker-compose.yml and provision scripts |
 | `OPENCLAW_RUNTIME_PROVIDER` | auto-detect | No | `docker` or `podman` (auto-detected via socket if omitted) |
+| `OPENCLAW_EXTENSIONS` | `feishu` | No | Docker build arg passthrough for extension preinstall |
+| `OPENCLAW_INSTALL_BROWSER` | empty | No | Docker build arg passthrough; non-empty installs Chromium + Xvfb into image |
 | `OPENCLAW_HOST_IP` | `127.0.0.1` | No | Host IP for gateway URL generation |
 | `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Gateway port range start |
 | `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Gateway port range end |

@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/api",
+  "name": "openclaw-tenant",
   "private": true,
   "scripts": {
     "dev": "bun run --env-file=../../.env --watch src/index.ts",

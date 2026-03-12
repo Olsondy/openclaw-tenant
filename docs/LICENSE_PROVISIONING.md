@@ -171,6 +171,30 @@ File: `packages/api/src/routes/verify.ts`
 - Worker jobs are tracked in-memory (`activeJobs`) to avoid duplicate active promises in one process.
 - Failures are persisted, so UI can display status and error details.
 
+### Image Cache + Build Args Caveat (Important)
+
+`provision-docker.sh` only builds the image when `OPENCLAW_IMAGE` does **not** exist.
+If `openclaw:local` already exists, provision will skip build and reuse the old image.
+
+This matters for Docker build args:
+
+- `OPENCLAW_EXTENSIONS` controls which extension manifests are injected before `pnpm install` in Docker build.
+- If image was first built without `OPENCLAW_EXTENSIONS=feishu`, Feishu runtime dependency
+  `@larksuiteoapi/node-sdk` may be missing at runtime and plugin load can fail:
+  `Cannot find module '@larksuiteoapi/node-sdk'`.
+- `OPENCLAW_INSTALL_BROWSER` controls whether Chromium + Xvfb are baked into image.
+  If image was first built without it, browser automation may fail with:
+  `No supported browser found (...)`.
+
+Recommended practice:
+
+1. First build (or rebuild) image explicitly with required extensions:
+   - `docker build --build-arg OPENCLAW_EXTENSIONS=feishu --build-arg OPENCLAW_INSTALL_BROWSER=1 -t openclaw:local -f <runtime_dir>/Dockerfile <runtime_dir>`
+2. Recreate gateway container for each existing `compose_project` (same project name, same ports) to apply new image.
+3. Keep using per-license `runtime_dir/data_dir/gateway_port/bridge_port/gateway_token` from DB snapshot when recreating.
+
+Do not rely on "provision rerun" alone to refresh extension dependencies if image tag already exists.
+
 ## Critical Env Variables
 - `OPENCLAW_RUNTIME_DIR`, `OPENCLAW_DATA_DIR`, `OPENCLAW_HOST_IP`
 - `OPENCLAW_GATEWAY_PORT_START`, `OPENCLAW_GATEWAY_PORT_END`
