@@ -56,7 +56,7 @@ Provision 脚本将宿主机目录挂载到容器内：
 | `{dataDir}/{composeProject}/.openclaw` | `/home/node/.openclaw` | 配置 + workspace |
 
 容器内 workspace 路径由 `openclaw.json` 中 `agents.defaults.workspace` 决定（默认 `/home/node/.openclaw/workspace`）。
-租户修改此值只影响容器内部行为，不影响 tenant API。
+修改此值只影响容器内部行为，不影响 tenant API。
 
 ### Path Resolution in Provisioning
 `licenseProvisioningService.ts` 从 license 行读取 `runtime_dir` / `data_dir` 后，

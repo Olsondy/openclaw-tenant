@@ -23,6 +23,8 @@ Runtime environment contract for API/UI startup and provisioning operations.
 | `OPENCLAW_RUNTIME_PROVIDER` | auto-detect | No | `docker` or `podman` (auto-detected via socket if omitted) |
 | `OPENCLAW_EXTENSIONS` | `feishu` | No | Docker build arg passthrough for extension preinstall |
 | `OPENCLAW_INSTALL_BROWSER` | empty | No | Docker build arg passthrough; non-empty installs Chromium + Xvfb into image |
+| `OPENCLAW_DOCKER_APT_PACKAGES` | empty | No | Docker build arg passthrough; installs extra apt packages such as `ffmpeg` into the runtime image |
+| `OPENCLAW_INSTALL_DOCKER_CLI` | empty | No | Docker build arg passthrough; non-empty installs Docker CLI into the runtime image |
 | `OPENCLAW_HOST_IP` | `127.0.0.1` | No | Host IP for gateway URL generation |
 | `OPENCLAW_GATEWAY_PORT_START` | `18789` | No | Gateway port range start |
 | `OPENCLAW_GATEWAY_PORT_END` | `18999` | No | Gateway port range end |

@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** `POST /api/licenses` 创建 license 后立即触发异步容器编排（docker-setup.sh），provision 完成后 `verify` 才允许激活，approve 改为按容器名定位。
+**Goal:** `POST /api/licenses` 创建 license 后立即触发异步容器编排（provision-docker.sh），provision 完成后 `verify` 才允许激活，approve 改为按容器名定位。
 
 **Architecture:** 在现有 Hono API 上扩展：创建时生成 gateway_token + 分配端口 + 落库（provision_status=pending），异步 worker 执行 shell 脚本、回写容器信息；verify 增加 provisioning 状态门禁；Nginx 可选域名模式。数据库通过 `ensureLicenseColumns()` 兼容旧库。
 
@@ -51,7 +51,7 @@ packages/ui/src/lib/
 ```env
 OPENCLAW_DATA_DIR=/data/openclaw
 OPENCLAW_RUNTIME_DIR=/opt/openclaw
-OPENCLAW_PROVISION_SCRIPT=          # 默认 ${OPENCLAW_RUNTIME_DIR}/docker-setup.sh
+OPENCLAW_PROVISION_SCRIPT=          # 默认 ${OPENCLAW_RUNTIME_DIR}/provision-docker.sh
 OPENCLAW_HOST_IP=192.168.1.100
 OPENCLAW_GATEWAY_PORT_START=18789
 OPENCLAW_GATEWAY_PORT_END=18999
@@ -811,7 +811,7 @@ async function runProvisioning(licenseId: number): Promise<void> {
     const runtimeDir = process.env.OPENCLAW_RUNTIME_DIR!;
     const dataDir = process.env.OPENCLAW_DATA_DIR!;
     const provisionScript =
-      process.env.OPENCLAW_PROVISION_SCRIPT ?? `${runtimeDir}/docker-setup.sh`;
+      process.env.OPENCLAW_PROVISION_SCRIPT ?? `${runtimeDir}/provision-docker.sh`;
     const configDir = buildConfigDir(dataDir, license.compose_project);
     const workspaceDir = buildWorkspaceDir(dataDir, license.compose_project);
 

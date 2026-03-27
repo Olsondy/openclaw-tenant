@@ -51,8 +51,8 @@ ALTER TABLE licenses ADD COLUMN nginx_host TEXT;
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `OPENCLAW_RUNTIME_DIR` | 必填 | 包含 `docker-setup.sh` 与 compose 文件的目录。 |
-| `OPENCLAW_PROVISION_SCRIPT` | `${OPENCLAW_RUNTIME_DIR}/docker-setup.sh` | provision 执行脚本路径。 |
+| `OPENCLAW_RUNTIME_DIR` | 必填 | 包含 `provision-docker.sh` 与 compose 文件的目录。 |
+| `OPENCLAW_PROVISION_SCRIPT` | `${OPENCLAW_RUNTIME_DIR}/provision-docker.sh` | provision 执行脚本路径。 |
 | `OPENCLAW_HOST_IP` | 必填 | 回写 URL 使用的宿主机 IP。 |
 | `OPENCLAW_GATEWAY_PORT_START` | `18789` | gateway 宿主机端口起始。 |
 | `OPENCLAW_GATEWAY_PORT_END` | `18999` | gateway 宿主机端口结束。 |
@@ -120,7 +120,7 @@ ALTER TABLE licenses ADD COLUMN nginx_host TEXT;
 ### Task 2: Provisioning 核心服务
 1. 新建 `packages/api/src/services/provisioning/portAllocator.ts`。  
 2. 新建 `packages/api/src/services/provisioning/nameBuilder.ts`（ownerTag/composeProject/host 规则）。  
-3. 新建 `packages/api/src/services/provisioning/scriptRunner.ts`（执行 `docker-setup.sh`）。  
+3. 新建 `packages/api/src/services/provisioning/scriptRunner.ts`（执行 `provision-docker.sh`）。  
 4. 新建 `packages/api/src/services/provisioning/nginxService.ts`（模板渲染、`nginx -t`、reload）。  
 5. 新建 `packages/api/src/services/provisioning/licenseProvisioningService.ts`（队列 + 状态更新）。  
 6. 为以上服务增加对应 `*.test.ts`，用 stub runner 避免真 docker/nginx 依赖。  
@@ -178,7 +178,7 @@ ALTER TABLE licenses ADD COLUMN nginx_host TEXT;
 
 ## Assumptions & Defaults
 1. API 服务运行在可执行 `bash/docker/docker compose/nginx` 的 Linux 主机。  
-2. `docker-setup.sh` 在你环境里可非交互执行；若实际阻塞，立刻改为专用非交互脚本并替换 `OPENCLAW_PROVISION_SCRIPT`。  
+2. `provision-docker.sh` 在你环境里可非交互执行；若实际阻塞，立刻调整专用非交互脚本路径并替换 `OPENCLAW_PROVISION_SCRIPT`。  
 3. 一条 license 对应一个 openclaw-gateway 容器实例。  
 4. approve 仍在 verify 成功后触发，且必须按该 license 的 `container_name` 定位容器。  
 5. 当前不新增 retry API；失败后通过后台恢复机制和后续运维工具处理（可在下一迭代补 `retry` 接口）。  
